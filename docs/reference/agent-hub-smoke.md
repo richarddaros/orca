@@ -27,7 +27,7 @@ runtime without changing `PATH`, use its package launcher explicitly:
 
 ```bash
 ORCA_HUB_DSH_BIN=pnpm \
-ORCA_HUB_DSH_ARGS='["--dir","/mnt/NVME-2TB/projetos/richard-repositories/deepseek-harness","dsh","--version"]' \
+ORCA_HUB_DSH_ARGS='["--dir","/path/to/deepseek-harness","dsh","--version"]' \
 pnpm run smoke:agent-hub
 ```
 
