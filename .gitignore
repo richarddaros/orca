@@ -105,6 +105,8 @@ docs/**
 !docs/reference/renderer-agent-status-performance.md
 !docs/reference/windows-setup-shell.md
 !docs/reference/worktree-scan-fingerprint.md
+!docs/reference/agent-hub-smoke.md
+!docs/reference/opencode-fork-sync.md
 
 # Stably CLI (only docs/ are tracked)
 .stably/*

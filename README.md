@@ -252,6 +252,8 @@ Pair with your desktop app to monitor and steer your agents from your phone.
 
 Want to contribute or run locally? See our [CONTRIBUTING.md](.github/CONTRIBUTING.md) guide.
 
+Maintainers working on the multi-engine agent hub can use the [agent hub smoke guide](docs/reference/agent-hub-smoke.md) and the [OpenCode fork synchronization runbook](docs/reference/opencode-fork-sync.md).
+
 <a href="https://github.com/stablyai/orca/graphs/contributors">
   <img src="https://contrib.rocks/image?repo=stablyai/orca" alt="Orca contributors" />
 </a>

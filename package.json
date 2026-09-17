@@ -26,6 +26,8 @@
     "prepare": "husky",
     "test": "node config/scripts/ensure-native-runtime.mjs --runtime=node && vitest run --config config/vitest.config.ts",
     "test:repro:remote-agent-session": "pnpm run build:cli && pnpm run build:electron-vite && node config/scripts/remote-agent-session-authority-repro.mjs",
+    "smoke:agent-hub": "node config/scripts/agent-hub-smoke.mjs",
+    "test:agent-hub": "vitest run --config config/vitest.config.ts config/scripts/agent-hub-smoke.test.mjs",
     "check:reliability-gates": "node config/scripts/check-reliability-gates.mjs",
     "check:max-lines-ratchet": "node config/scripts/check-max-lines-ratchet.mjs",
     "check:feature-wall-assets": "node config/scripts/check-feature-wall-assets.mjs",
