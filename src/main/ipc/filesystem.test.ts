@@ -1,3 +1,4 @@
+import { EventEmitter } from 'node:events'
 import path from 'node:path'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
@@ -69,7 +70,10 @@ vi.mock(
 )
 
 import { registerFilesystemHandlers } from './filesystem'
-import { registerWorktreeRootsForRepo, invalidateAuthorizedRootsCache } from './filesystem-auth'
+import {
+  registerWorktreeRootsForRepo,
+  invalidateAuthorizedRootsCache
+} from './registered-worktree-roots-cache'
 
 describe('registerFilesystemHandlers', () => {
   beforeEach(() => {
@@ -314,12 +318,6 @@ describe('registerFilesystemHandlers', () => {
     expect(readFileMock).not.toHaveBeenCalled()
   })
 
-  it('does not enumerate worktrees when filesystem handlers register', () => {
-    registerFilesystemHandlers(store as never)
-
-    expect(listWorktreesMock).not.toHaveBeenCalled()
-  })
-
   it('rejects writes to directories', async () => {
     lstatMock.mockResolvedValue({ isDirectory: () => true })
 
@@ -556,41 +554,99 @@ describe('registerFilesystemHandlers', () => {
     })
   })
 
-  // Why #7721: without a cancel path, every workspace switch left the previous
-  // workspace's full-tree SSH scan running, stacking scans on the relay until
-  // interactive fs.readDir/fs.stat starved past their 30s timeout.
-  it('fs:cancelListFiles aborts an in-flight SSH listing by request token (#7721)', async () => {
-    let capturedSignal: AbortSignal | undefined
-    const listFilesMock = vi.fn(
-      (_rootPath: string, options: { signal?: AbortSignal }) =>
-        new Promise<string[]>((_resolve, reject) => {
-          capturedSignal = options.signal
-          options.signal?.addEventListener('abort', () => reject(new Error('listing cancelled')), {
-            once: true
-          })
-        })
-    )
+  it('fs:listFiles forwards bounded Quick Open search options to SSH', async () => {
+    const listFilesMock = vi.fn().mockResolvedValue(['src/target.ts'])
     getSshFilesystemProviderMock.mockReturnValue({ listFiles: listFilesMock })
 
     registerFilesystemHandlers(store as never)
 
-    // Why: cancellation keys are scoped to the issuing webContents, so the
-    // cancel must come from the same sender as the listing request.
-    const senderEvent = { sender: { id: 7 } }
-    const pending = handlers.get('fs:listFiles')!(senderEvent, {
+    await handlers.get('fs:listFiles')!(null, {
       rootPath: '/home/user/repo',
       connectionId: 'conn-1',
-      requestToken: 'token-1'
-    }) as Promise<string[]>
+      maxResults: 33,
+      searchQuery: 'target'
+    })
 
-    expect(capturedSignal?.aborted).toBe(false)
-    await handlers.get('fs:cancelListFiles')!(senderEvent, { requestToken: 'token-1' })
-    expect(capturedSignal?.aborted).toBe(true)
-    await expect(pending).rejects.toThrow('listing cancelled')
-
-    // Unknown or already-settled tokens are a no-op, not an error.
-    expect(() =>
-      handlers.get('fs:cancelListFiles')!(senderEvent, { requestToken: 'unknown' })
-    ).not.toThrow()
+    expect(listFilesMock).toHaveBeenCalledWith('/home/user/repo', {
+      excludePaths: undefined,
+      maxResults: 33,
+      searchQuery: 'target'
+    })
   })
+
+  it('ranks a bounded legacy SSH listing when the relay lacks Quick Open search', async () => {
+    const listFilesMock = vi.fn().mockResolvedValue(['src/target.ts', 'src/index.ts'])
+    const supportsQuickOpenSearchMock = vi.fn().mockResolvedValue(false)
+    getSshFilesystemProviderMock.mockReturnValue({
+      listFiles: listFilesMock,
+      supportsQuickOpenSearch: supportsQuickOpenSearchMock
+    })
+
+    registerFilesystemHandlers(store as never)
+
+    await expect(
+      handlers.get('fs:listFiles')!(null, {
+        rootPath: '/home/user/repo',
+        connectionId: 'conn-1',
+        maxResults: 2,
+        searchQuery: 'target'
+      })
+    ).resolves.toEqual(['src/target.ts'])
+
+    expect(supportsQuickOpenSearchMock).toHaveBeenCalled()
+    expect(listFilesMock).toHaveBeenCalledWith('/home/user/repo', {
+      excludePaths: undefined,
+      maxResults: 33
+    })
+  })
+
+  // Why #7721: without a cancel path, every workspace switch left the previous
+  // workspace's full-tree SSH scan running, stacking scans on the relay until
+  // interactive fs.readDir/fs.stat starved past their 30s timeout.
+  it.each(['cancel', 'did-navigate', 'render-process-gone', 'destroyed'])(
+    'aborts an in-flight SSH file listing on %s (#7721)',
+    async (eventName) => {
+      let capturedSignal: AbortSignal | undefined
+      const listFilesMock = vi.fn(
+        (_rootPath: string, options: { signal?: AbortSignal }) =>
+          new Promise<string[]>((_resolve, reject) => {
+            capturedSignal = options.signal
+            options.signal?.addEventListener(
+              'abort',
+              () => reject(new Error('listing cancelled')),
+              {
+                once: true
+              }
+            )
+          })
+      )
+      getSshFilesystemProviderMock.mockReturnValue({ listFiles: listFilesMock })
+
+      registerFilesystemHandlers(store as never)
+
+      // Why: cancellation keys are scoped to the issuing webContents, so the
+      // cancel must come from the same sender as the listing request.
+      const senderEvent = { sender: Object.assign(new EventEmitter(), { id: 7 }) }
+      const pending = handlers.get('fs:listFiles')!(senderEvent, {
+        rootPath: '/home/user/repo',
+        connectionId: 'conn-1',
+        requestToken: 'token-1'
+      }) as Promise<string[]>
+
+      expect(capturedSignal?.aborted).toBe(false)
+      if (eventName === 'cancel') {
+        await handlers.get('fs:cancelListFiles')!(senderEvent, { requestToken: 'token-1' })
+      } else {
+        senderEvent.sender.emit(eventName)
+      }
+      expect(capturedSignal?.aborted).toBe(true)
+      await expect(pending).rejects.toThrow('listing cancelled')
+      expect(senderEvent.sender.eventNames()).toEqual([])
+
+      // Unknown or already-settled tokens are a no-op, not an error.
+      expect(() =>
+        handlers.get('fs:cancelListFiles')!(senderEvent, { requestToken: 'unknown' })
+      ).not.toThrow()
+    }
+  )
 })

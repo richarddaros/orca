@@ -72,11 +72,16 @@ describe('orca cli worktree awareness', () => {
     expect(callMock).toHaveBeenNthCalledWith(2, 'worktree.create', {
       repo: 'id:repo-1',
       name: 'feature',
+      displayName: 'feature',
+      displayNameKind: 'user',
       baseBranch: undefined,
       linkedIssue: undefined,
       comment: undefined,
       runHooks: true,
       activate: true,
+      // Why: the CLI pairs as a runtime device but has no viewer, so --activate must
+      // stay an explicit all-surface reveal rather than caller-scoped navigation.
+      navigation: 'all',
       parentWorktree: undefined,
       cwdParentWorktree: 'id:repo-1::/tmp/repo',
       noParent: false,
@@ -119,6 +124,8 @@ describe('orca cli worktree awareness', () => {
     expect(callMock).toHaveBeenNthCalledWith(2, 'worktree.create', {
       repo: 'id:repo-1',
       name: 'agent-task',
+      displayName: 'agent-task',
+      displayNameKind: 'user',
       baseBranch: undefined,
       linkedIssue: undefined,
       comment: undefined,
@@ -131,7 +138,8 @@ describe('orca cli worktree awareness', () => {
       callerTerminalHandle: undefined,
       cliProvenanceRequest: {},
       startupAgent: 'codex',
-      startupPrompt: 'hi'
+      startupPrompt: 'hi',
+      launchSource: 'cli'
     })
   })
 
@@ -166,18 +174,22 @@ describe('orca cli worktree awareness', () => {
     expect(callMock).toHaveBeenNthCalledWith(2, 'worktree.create', {
       repo: 'id:repo-1',
       name: 'agent-task',
+      displayName: 'agent-task',
+      displayNameKind: 'user',
       baseBranch: undefined,
       linkedIssue: undefined,
       comment: undefined,
       runHooks: false,
       activate: true,
+      navigation: 'all',
       parentWorktree: undefined,
       cwdParentWorktree: 'id:repo-1::/tmp/repo',
       noParent: false,
       callerTerminalHandle: undefined,
       cliProvenanceRequest: {},
       startupAgent: 'codex',
-      startupPrompt: 'hi'
+      startupPrompt: 'hi',
+      launchSource: 'cli'
     })
   })
 

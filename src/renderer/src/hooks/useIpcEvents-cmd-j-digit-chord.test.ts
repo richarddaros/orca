@@ -52,7 +52,26 @@ describe('useIpcEvents digit-chord routing while Cmd+J is open', () => {
 
     expect(rowJumps).toEqual([])
     // Why assert the activation and not just the silent bus: a premature return would also emit nothing.
-    expect(harness.activateAndRevealWorkspace).toHaveBeenCalledWith('wt-c')
+    expect(harness.activateAndRevealWorkspace).toHaveBeenCalledWith('wt-c', {
+      navigationIntent: 'user-open'
+    })
+  })
+
+  it('routes duplicate ids at different positions to their rendered hosts', async () => {
+    const harness = await loadIpcEventsHarness(createPaletteState(null), {
+      visibleWorktreeTargets: [
+        { id: 'repo::path', executionHostId: 'local' },
+        { id: 'repo::path', executionHostId: 'ssh:box' }
+      ]
+    })
+    harness.useIpcEvents()
+
+    harness.jumpToWorktreeIndex(1)
+
+    expect(harness.activateAndRevealWorkspace).toHaveBeenCalledWith('repo::path', {
+      navigationIntent: 'user-open',
+      executionHostId: 'ssh:box'
+    })
   })
 
   it('drops the tab digit chord rather than switching tabs behind the overlay', async () => {

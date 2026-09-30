@@ -1,18 +1,21 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { readFileSync, rmSync, mkdtempSync, existsSync } from 'node:fs'
+import { rmSync, mkdtempSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import type { PersistedState } from '../shared/persisted-state-types'
 import { getDefaultPersistedState } from '../shared/constants'
 import { createDefaultWorkspaceCleanupBrowseState } from '../shared/workspace-cleanup-browse-state'
 import {
+  closeTestStores,
+  createSqliteTestStore,
+  readPersistedStateJson,
   testState,
-  createStore,
   dataFile,
   writeDataFile,
   readDataFile,
   makeRepo
 } from './persistence-test-harness'
+import { installFakeAppEnvironment } from '../../config/scripts/vitest-host-ports-setup'
 
 // Stub the ~/.ssh/config parser so the SSH-import test drives the real Store with deterministic hosts, not the operator's actual ~/.ssh/config.
 const { loadUserSshConfigMock, sshConfigHostsToTargetsMock } = vi.hoisted(() => ({
@@ -32,19 +35,31 @@ const { trackMock, getCohortAtEmitMock } = vi.hoisted(() => ({
 vi.mock('electron', () => ({
   app: {
     getPath: () => testState.dir
-  },
-  safeStorage: {
+  }
+}))
+
+async function createStore() {
+  vi.resetModules()
+  const { setSecretStore } = await import('../shared/secret-store')
+  setSecretStore({
     isEncryptionAvailable: () => true,
-    encryptString: (plaintext: string) => Buffer.from(`encrypted:${plaintext}`, 'utf-8'),
-    decryptString: (ciphertext: Buffer) => {
+    encryptString: (plaintext) => Buffer.from(`encrypted:${plaintext}`, 'utf-8'),
+    decryptString: (ciphertext) => {
       const decoded = ciphertext.toString('utf-8')
       if (!decoded.startsWith('encrypted:')) {
         throw new Error('invalid ciphertext')
       }
       return decoded.slice('encrypted:'.length)
-    }
-  }
-}))
+    },
+    describeProtectionGap: () => null
+  })
+  const { Store, initDataPath } = await import('./persistence')
+  // Why here: userData resolves through AppEnvironment, and this must point at this
+  // file's temp dir rather than the global fake's shared one, after resetModules.
+  installFakeAppEnvironment({ getPath: () => testState.dir })
+  initDataPath()
+  return createSqliteTestStore(Store, { dataFile: join(testState.dir, 'orca-data.json') })
+}
 
 vi.mock('./telemetry/client', () => ({
   track: trackMock
@@ -62,7 +77,8 @@ describe('Store', () => {
     getCohortAtEmitMock.mockReturnValue({ nth_repo_added: 2 })
   })
 
-  afterEach(() => {
+  afterEach(async () => {
+    await closeTestStores()
     rmSync(testState.dir, { recursive: true, force: true })
   })
   // ── UI state ───────────────────────────────────────────────────────
@@ -93,6 +109,50 @@ describe('Store', () => {
       { hostId: 'runtime:node-b', repoId: 'shared' },
       { hostId: 'local', repoId: 'alpha' }
     ])
+  })
+
+  // The RPC now strips manualRepoOrder, so every paired-client ui.set reaches the store without
+  // the key. Absent has to mean preserve: if it read as clear, the strip would erase the desktop's
+  // order on the first unrelated setting a phone or web client changes.
+  // Absent-means-preserve is what makes the pairing-local strip safe: a client's ui.set arrives
+  // without these fields, so the desktop's own values must survive the update.
+  it('updateUI preserves the manual repo and host-section order when an update omits them', async () => {
+    const store = await createStore()
+    store.updateUI({
+      manualRepoOrder: [
+        { hostId: 'local', repoId: 'alpha' },
+        { hostId: 'ssh:box', repoId: 'bravo' }
+      ] as never,
+      workspaceHostOrder: ['ssh:box', 'local'] as never
+    })
+
+    store.updateUI({ sidebarWidth: 400 })
+
+    expect(store.getUI().manualRepoOrder).toEqual([
+      { hostId: 'local', repoId: 'alpha' },
+      { hostId: 'ssh:box', repoId: 'bravo' }
+    ])
+    expect(store.getUI().workspaceHostOrder).toEqual(['ssh:box', 'local'])
+    expect(store.getUI().sidebarWidth).toBe(400)
+  })
+
+  it('updateUI persists sanitized per-worktree explorer roots', async () => {
+    const store = await createStore()
+    store.updateUI({
+      explorerDisplayRootByWorktree: {
+        'repo-1::/repo': '/',
+        'repo-2::/repo': 'packages/app',
+        // @ts-expect-error Deliberately malformed input exercises runtime sanitization.
+        'repo-3::/repo': false,
+        // @ts-expect-error Deliberately malformed prototype key exercises runtime sanitization.
+        constructor: false
+      }
+    })
+
+    expect(store.getUI().explorerDisplayRootByWorktree).toEqual({
+      'repo-1::/repo': '/',
+      'repo-2::/repo': 'packages/app'
+    })
   })
 
   it('updateUI persists sanitized per-worktree dotfile visibility', async () => {
@@ -128,7 +188,7 @@ describe('Store', () => {
       })
       vi.advanceTimersByTime(1000)
       await store.waitForPendingWrite()
-      const persistedBefore = readFileSync(dataFile(), 'utf-8')
+      const persistedBefore = readPersistedStateJson(dataFile())
       store.onUIChanged((ui) => notifications.push(ui))
 
       store.updateUI({
@@ -144,7 +204,7 @@ describe('Store', () => {
       await store.waitForPendingWrite()
 
       expect(notifications).toEqual([])
-      expect(readFileSync(dataFile(), 'utf-8')).toBe(persistedBefore)
+      expect(readPersistedStateJson(dataFile())).toBe(persistedBefore)
     } finally {
       vi.useRealTimers()
     }
@@ -156,7 +216,7 @@ describe('Store', () => {
     store.updateUI({ sidebarWidth: 321 })
     store.flush()
 
-    const raw = readFileSync(dataFile(), 'utf-8')
+    const raw = readPersistedStateJson(dataFile())
     // Compact payload: no newline-plus-indentation from JSON.stringify(_, null, 2).
     expect(raw).not.toMatch(/\n\s+"/)
     const parsed = JSON.parse(raw) as PersistedState
@@ -745,4 +805,39 @@ describe('Store', () => {
     const store = await createStore()
     expect(store.getUI().browserKagiSessionLink).toBe(sessionLink)
   })
+
+  it.each(['shutdown', 'freeze', 'maintenance'] as const)(
+    'rejects legacy SSH mutations before changing memory during %s',
+    async (gate) => {
+      const store = await createStore()
+      const recovery = {
+        targetId: 'ssh-1',
+        clientInstanceId: 'client-1',
+        serverBuildId: 'relay-build-1',
+        clientGeneration: 3,
+        ownerGeneration: 5,
+        ownerLease: 'secret-owner-lease'
+      }
+      await store.upsertSshPtyConsumerRecovery(recovery)
+      store.upsertSshRemotePtyLease({ targetId: 'ssh-1', ptyId: 'pty-1', state: 'detached' })
+      await store.flushPendingOrThrowAsync()
+      const closing =
+        gate === 'shutdown'
+          ? store.flushAsync()
+          : gate === 'freeze'
+            ? store.freezeWritesAsync()
+            : store.beginProfileMaintenance()
+      await Promise.all(
+        [
+          store.upsertSshPtyConsumerRecovery({ ...recovery, clientInstanceId: 'refused-owner' }),
+          store.removeSshPtyConsumerRecovery('ssh-1'),
+          store.markSshRemotePtyLeasesAsync('ssh-1', 'terminated'),
+          store.markSshRemotePtyLeasesAttachedAsync('ssh-1', ['pty-1'])
+        ].map((operation) => expect(operation).rejects.toThrow('finalized profile persistence'))
+      )
+      expect(store.getSshPtyConsumerRecovery('ssh-1')).toEqual(recovery)
+      expect(store.getSshRemotePtyLeases('ssh-1')[0]?.state).toBe('detached')
+      await closing
+    }
+  )
 })

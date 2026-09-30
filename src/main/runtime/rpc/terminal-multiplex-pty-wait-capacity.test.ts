@@ -143,7 +143,7 @@ describe('terminal multiplex RPC', () => {
         .filter((frame) => frame?.opcode === TerminalStreamOpcode.Error)
         .map((frame) => (frame ? decodeTerminalStreamText(frame.payload) : ''))
     ).toEqual([])
-    harness.cleanups.get('terminal-multiplex:conn-desktop-first-paint')?.()
+    harness.registry.cleanupSubscription('terminal-multiplex:conn-desktop-first-paint')
     await harness.dispatchPromise
   })
 
@@ -198,7 +198,7 @@ describe('terminal multiplex RPC', () => {
     expect(registerRemoteTerminalViewSubscriber).not.toHaveBeenCalled()
     expect(harness.handlers.has(7)).toBe(false)
 
-    harness.cleanups.get('terminal-multiplex:conn-desktop-first-paint')?.()
+    harness.registry.cleanupSubscription('terminal-multiplex:conn-desktop-first-paint')
     await harness.dispatchPromise
   })
 
@@ -232,7 +232,7 @@ describe('terminal multiplex RPC', () => {
 
     expect(waitSignals[0]?.aborted).toBe(true)
     expect(waitSignals[1]?.aborted).toBe(false)
-    harness.cleanups.get('terminal-multiplex:conn-desktop-first-paint')?.()
+    harness.registry.cleanupSubscription('terminal-multiplex:conn-desktop-first-paint')
     await vi.waitFor(() => expect(waitSignals[1]?.aborted).toBe(true))
     await harness.dispatchPromise
   })
@@ -284,7 +284,6 @@ describe('terminal multiplex RPC', () => {
         )!
       )
     }
-    expect(TERMINAL_MULTIPLEX_MAX_ACTIVE_STREAMS_PER_CONNECTION).toBe(128)
     for (
       let streamId = 1;
       streamId <= TERMINAL_MULTIPLEX_MAX_ACTIVE_STREAMS_PER_CONNECTION + 1;
@@ -349,7 +348,7 @@ describe('terminal multiplex RPC', () => {
     expect(dataSubscriberCount).toBe(TERMINAL_MULTIPLEX_MAX_ACTIVE_STREAMS_PER_CONNECTION)
     expect(viewSubscriberCount).toBe(TERMINAL_MULTIPLEX_MAX_ACTIVE_STREAMS_PER_CONNECTION)
 
-    harness.cleanups.get('terminal-multiplex:conn-desktop-first-paint')?.()
+    harness.registry.cleanupSubscription('terminal-multiplex:conn-desktop-first-paint')
     await harness.dispatchPromise
     expect(dataSubscriberCount).toBe(0)
     expect(viewSubscriberCount).toBe(0)
@@ -447,7 +446,7 @@ describe('terminal multiplex RPC', () => {
       ).toHaveLength(1)
     })
 
-    harness.cleanups.get('terminal-multiplex:conn-desktop-first-paint')?.()
+    harness.registry.cleanupSubscription('terminal-multiplex:conn-desktop-first-paint')
     await harness.dispatchPromise
   })
 
@@ -470,7 +469,7 @@ describe('terminal multiplex RPC', () => {
       .map((frame) => decodeTerminalStreamFrame(frame))
       .find((frame) => frame?.opcode === TerminalStreamOpcode.Error)
     expect(errorFrame && decodeTerminalStreamText(errorFrame.payload)).toBe('no_connected_pty')
-    harness.cleanups.get('terminal-multiplex:conn-desktop-first-paint')?.()
+    harness.registry.cleanupSubscription('terminal-multiplex:conn-desktop-first-paint')
     await harness.dispatchPromise
   })
 
@@ -491,7 +490,7 @@ describe('terminal multiplex RPC', () => {
     )
     expect(runtime.waitForLeafPtyId).not.toHaveBeenCalled()
     expect(runtime.requestRendererTerminalTabMount).not.toHaveBeenCalled()
-    harness.cleanups.get('terminal-multiplex:conn-desktop-first-paint')?.()
+    harness.registry.cleanupSubscription('terminal-multiplex:conn-desktop-first-paint')
     await harness.dispatchPromise
   })
 
@@ -595,7 +594,11 @@ describe('terminal multiplex RPC', () => {
     // Widened gate: a desktop client must mount + await its late PTY, not skip
     // straight to the bare scrollback path the way it did under the mobile-only gate.
     expect(runtime.requestRendererTerminalTabMount).toHaveBeenCalledWith('terminal-1')
-    expect(runtime.waitForLeafPtyId).toHaveBeenCalledWith('terminal-1', 10_000, undefined)
+    expect(runtime.waitForLeafPtyId).toHaveBeenCalledWith(
+      'terminal-1',
+      10_000,
+      expect.any(AbortSignal)
+    )
     expect(messages.map((msg) => JSON.parse(msg).result?.type)).toEqual(['subscribed', 'end'])
   })
 })

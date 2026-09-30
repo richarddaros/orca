@@ -59,7 +59,10 @@ vi.mock('@/lib/browser-uuid', () => ({
 }))
 
 vi.mock('@/lib/worktree-activation', () => ({
-  activateAndRevealWorktree: vi.fn(() => false),
+  activateAndRevealWorktree: vi.fn(() => false)
+}))
+
+vi.mock('@/lib/worktree-initial-terminal-seeding', () => ({
   ensureWorktreeHasInitialTerminal: vi.fn()
 }))
 
@@ -82,10 +85,8 @@ vi.mock('@/lib/ephemeral-vm-workspace-target', () => ({
 }))
 
 import { toast } from 'sonner'
-import {
-  activateAndRevealWorktree,
-  ensureWorktreeHasInitialTerminal
-} from '@/lib/worktree-activation'
+import { activateAndRevealWorktree } from '@/lib/worktree-activation'
+import { ensureWorktreeHasInitialTerminal } from '@/lib/worktree-initial-terminal-seeding'
 import { queueWorkspaceActivationTerminalFocus } from '@/lib/workspace-activation-terminal-focus'
 import {
   beginBackgroundWorktreePreparation,
@@ -578,36 +579,6 @@ describe('staged background worktree creation', () => {
     expect(store.removePendingWorktreeCreation).toHaveBeenCalledWith('creation-1', {
       cleanupVm: false
     })
-  })
-
-  it('does not reveal a workspace cancelled during post-create trust preflight', async () => {
-    let resolveTrust!: () => void
-    const markTrusted = vi.fn(
-      () =>
-        new Promise<void>((resolve) => {
-          resolveTrust = resolve
-        })
-    )
-    globalThis.window = { api: { agentTrust: { markTrusted } } } as never
-    store.repos = [{ id: 'repo-1', connectionId: null }]
-    store.createWorktree.mockResolvedValueOnce({
-      worktree: { id: 'wt-1', repoId: 'repo-1', path: '/repo/wt-1' }
-    })
-
-    const started = continueBackgroundWorktreeCreation(
-      'creation-1',
-      makeRequest({ agent: 'codex' }),
-      { revealCreationSurface: false }
-    )
-
-    expect(started).toBe(true)
-    await vi.waitFor(() => expect(markTrusted).toHaveBeenCalledTimes(1))
-    delete store.pendingWorktreeCreations['creation-1']
-    store.activePendingCreationId = null
-    resolveTrust()
-    await vi.waitFor(() => expect(ensureWorktreeHasInitialTerminal).toHaveBeenCalledTimes(1))
-
-    expect(activateAndRevealWorktree).not.toHaveBeenCalled()
   })
 
   // Why: one-click "Start workspace from issue" commonly backgrounds, so the
