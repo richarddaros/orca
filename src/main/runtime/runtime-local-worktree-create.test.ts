@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { resolve } from 'node:path'
 import type { Store } from '../persistence'
 import type { WorktreeMeta } from '../../shared/worktree/meta-types'
+import type { Repo } from '../../shared/repo-types'
+import { getDefaultRepoHookSettings } from '../../shared/constants'
 import type { RuntimeManagedWorktreeCreateArgs } from './runtime-managed-worktree-create-types'
 import type { AddWorktreeOptions } from '../git/worktree'
 import {
@@ -32,6 +34,7 @@ const mocks = vi.hoisted(() => ({
   resolveShared: vi.fn<() => Promise<string[]>>(),
   resolveInclude: vi.fn<() => Promise<string[]>>(),
   copyPaths: vi.fn<() => Promise<string[]>>(),
+  effectiveHooks: vi.fn(),
   created: {
     path: '',
     head: 'abc123',
@@ -52,6 +55,7 @@ vi.mock('../git/repo', () => ({
   getBranchConflictKind: mocks.branchConflict
 }))
 vi.mock('../git/git-username', () => ({ resolveLocalGitUsername: async () => '' }))
+vi.mock('../hooks', () => ({ getEffectiveHooks: mocks.effectiveHooks }))
 vi.mock('../git/worktree-base-ref-probe', () => ({ hasLocalWorktreeBaseRef: mocks.hasBase }))
 vi.mock('./runtime-worktree-create-git', () => ({
   resolveCreateBranchName: mocks.branchName,
@@ -82,12 +86,18 @@ vi.mock('../ipc/worktree-symlinks', () => ({
 
 import { createRuntimeLocalManagedWorktree } from './runtime-local-worktree-create'
 import type { PreparationRearmHolder } from '../worktree-create-preparation'
+import {
+  createWorktreeCreateTimingRecorder,
+  type WorktreeCreateTimingRecorder
+} from '../worktree-create-timing'
 
 const worktreePath = resolve('/worktrees', 'app')
 
 function createWorktree(
   request: Partial<RuntimeManagedWorktreeCreateArgs> = {},
-  rearm: PreparationRearmHolder = { fire: () => {} }
+  rearm: PreparationRearmHolder = { fire: () => {} },
+  timing: WorktreeCreateTimingRecorder = createWorktreeCreateTimingRecorder(),
+  repoOverrides: Partial<Repo> = {}
 ) {
   const store = {
     getSettings: () => ({
@@ -100,7 +110,14 @@ function createWorktree(
   }
   return createRuntimeLocalManagedWorktree({
     request: { repoSelector: 'repo-1', name: 'app', baseBranch: 'main', ...request },
-    repo: { id: 'repo-1', path: '/repo', displayName: 'Repo', badgeColor: '#000000', addedAt: 0 },
+    repo: {
+      id: 'repo-1',
+      path: '/repo',
+      displayName: 'Repo',
+      badgeColor: '#000000',
+      addedAt: 0,
+      ...repoOverrides
+    },
     // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: All store methods reached by this isolated create path are supplied above.
     store: store as Store,
     createdWithAgent: undefined,
@@ -109,7 +126,8 @@ function createWorktree(
     refreshRemoteTrackingBase: mocks.refresh,
     fetchRemote: mocks.fetch,
     onWorktreeMetadataPersisted: () => undefined,
-    rearm
+    rearm,
+    timing
   })
 }
 
@@ -143,6 +161,7 @@ beforeEach(() => {
   mocks.resolveShared.mockResolvedValue([])
   mocks.resolveInclude.mockResolvedValue(['.env'])
   mocks.copyPaths.mockResolvedValue([])
+  mocks.effectiveHooks.mockReturnValue(null)
 })
 
 describe('runtime prepared-worktree replenishment', () => {
@@ -213,6 +232,41 @@ describe('runtime prepared-worktree replenishment', () => {
     // The slot was consumed before the failure, so the caller's `finally` must find a real thunk.
     rearm.fire()
     expect(mocks.rearm).toHaveBeenCalledOnce()
+  })
+})
+
+describe('runtime create timing', () => {
+  it('times the add with the prepared-checkout consume inside it, and lists the worktrees', async () => {
+    mocks.listing.mockResolvedValue({
+      created: mocks.created,
+      worktrees: [mocks.created, mocks.created, mocks.created],
+      listingComplete: true
+    })
+    const timing = createWorktreeCreateTimingRecorder()
+
+    await createWorktree({}, undefined, timing)
+
+    expect(mocks.consume).toHaveBeenCalledWith(expect.objectContaining({ timing }))
+    const finished = timing.finish()
+    expect(finished.phases.map((phase) => phase.phase)).toEqual(
+      expect.arrayContaining([
+        'resolve_name',
+        'git_worktree_add',
+        'list_created_worktree',
+        'persist_metadata',
+        'copy_worktreeinclude'
+      ])
+    )
+    expect(finished).toMatchObject({ executionHost: 'local', worktreeCount: 3 })
+  })
+
+  it('records a sparse create as a miss without consulting the prepared checkout', async () => {
+    const timing = createWorktreeCreateTimingRecorder()
+
+    await createWorktree({ sparseCheckout: { directories: ['src'] } }, undefined, timing)
+
+    expect(mocks.consume).not.toHaveBeenCalled()
+    expect(timing.finish().preparedCheckout).toEqual({ status: 'miss', reason: 'sparse_checkout' })
   })
 })
 
@@ -304,5 +358,43 @@ describe('runtime create Git priority', () => {
       expect.objectContaining(options)
     )
     expect(mocks.consume).not.toHaveBeenCalled()
+  })
+})
+
+describe('runtime create setup decision', () => {
+  const askRepo: Partial<Repo> = {
+    hookSettings: { ...getDefaultRepoHookSettings(), setupRunPolicy: 'ask' }
+  }
+
+  beforeEach(() => {
+    mocks.effectiveHooks.mockReturnValue({ scripts: { setup: 'pnpm install' } })
+  })
+
+  it('refuses an ask repo with no decision before any git work', async () => {
+    const timing = createWorktreeCreateTimingRecorder()
+    // No requested base, so a create that got past the check would resolve the default base.
+    const request = { baseBranch: undefined }
+    await expect(createWorktree(request, undefined, timing, askRepo)).rejects.toThrow(
+      'Setup decision required for this repository'
+    )
+    // Hooks come from the main checkout (no worktree path): the new worktree doesn't exist yet.
+    expect(mocks.effectiveHooks.mock.calls).toEqual([[expect.objectContaining({ path: '/repo' })]])
+    for (const gitWork of [mocks.defaultBase, mocks.remoteBase, mocks.hasBase, mocks.refresh]) {
+      expect(gitWork).not.toHaveBeenCalled()
+    }
+    expect(mocks.fetch).not.toHaveBeenCalled()
+    expect(mocks.branchName).not.toHaveBeenCalled()
+    expect(mocks.consume).not.toHaveBeenCalled()
+    expect(mocks.add).not.toHaveBeenCalled()
+    // The refusal's failure telemetry still says where the create ran.
+    expect(timing.finish().executionHost).toBe('local')
+  })
+
+  it.each([
+    ['an explicit decision', { setupDecision: 'skip' as const }],
+    ['runHooks', { runHooks: true }]
+  ])('creates an ask repo once the request carries %s', async (_label, request) => {
+    await createWorktree(request, undefined, undefined, askRepo)
+    expect(mocks.consume).toHaveBeenCalledOnce()
   })
 })

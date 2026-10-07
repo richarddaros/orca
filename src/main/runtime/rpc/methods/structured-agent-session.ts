@@ -22,9 +22,9 @@ import {
   requireInstalledStructuredHost as requireInstalledHost,
   requireStructuredCapability,
   requireStructuredCleanupHost,
+  requireStructuredCreateSupportAdmission,
   requireStructuredHost as requireHost,
-  structuredCallerFor as callerFor,
-  supportsStructuredSessions
+  structuredCallerFor as callerFor
 } from './structured-agent-session-gate'
 import type { AgentSessionAttachParams } from '../../../native-chat/agent-session-wire/structured-agent-session-attach'
 import {
@@ -71,8 +71,8 @@ import { sendStructuredAgentSessionForClient } from './structured-agent-session-
 /**
  * The attach-shaped entries take the location from the client instead of resolving it from a
  * worktree, so they never reach the worktree-resolving create-support check. Ask the executing
- * host the same question directly: the answer includes host-measured facts the client cannot see
- * or forge, such as whether this machine can read a provider child's process start time.
+ * host the same question directly: only it knows which agents and locations it runs, and a client
+ * cannot forge that answer.
  */
 async function resolveClientSuppliedAttach(params: z.infer<typeof AttachParams>, ctx: RpcContext) {
   await ensureHostInstalled(ctx)
@@ -125,7 +125,7 @@ export const STRUCTURED_AGENT_SESSION_METHODS = [
         if (replacement) {
           ctx.runtime.replaceStructuredAgentSessionTab(replacement)
         }
-        await host.close(params.envelope.sessionId)
+        await host.close(params.envelope.sessionId, 'user-close')
       }
       return result
     }
@@ -134,12 +134,16 @@ export const STRUCTURED_AGENT_SESSION_METHODS = [
     name: 'agentSession.createSupport',
     params: CreateSupportParams,
     handler: async (params, ctx) => {
-      if (!supportsStructuredSessions(ctx)) {
-        throw agentSessionRefusalError('structured_agent_session_unsupported', {
-          reason: 'clientCapabilityMissing'
-        })
-      }
-      return ctx.runtime.getStructuredAgentSessionCreateSupport(params.worktree, params.agent)
+      requireStructuredCreateSupportAdmission(ctx)
+      const support = await ctx.runtime.getStructuredAgentSessionCreateSupport(
+        params.worktree,
+        params.agent
+      )
+      // Optional: older clients ignore it, and a client seeds its picker with what create will use.
+      const seedOptions = support.supported
+        ? ctx.runtime.structuredAgentSessionLaunchSeedOptions(params.agent)
+        : undefined
+      return seedOptions ? { ...support, seedOptions } : support
     }
   }),
   defineMethod({
@@ -171,7 +175,7 @@ export const STRUCTURED_AGENT_SESSION_METHODS = [
             },
             envelope: params.envelope,
             worktree: params.worktree,
-            agent: params.agent as 'claude' | 'codex',
+            agent: params.agent,
             caller: callerFor(ctx),
             ...(params.resumeFrom ? { resumeFrom: params.resumeFrom } : {}),
             ...(params.tabId ? { tabId: params.tabId } : {})
@@ -202,7 +206,6 @@ export const STRUCTURED_AGENT_SESSION_METHODS = [
     handler: sendStructuredAgentSessionForClient
   }),
   defineMethod({
-    // Stopping a turn, so it stays available after admission is revoked: see the gate's rule.
     name: 'agentSession.cancel',
     params: CancelParams,
     handler: async (params, ctx) => requireStructuredCleanupHost(ctx).cancel(callerFor(ctx), params)
@@ -214,14 +217,13 @@ export const STRUCTURED_AGENT_SESSION_METHODS = [
     name: 'agentSession.close',
     params: OptionsParams,
     handler: async (params, ctx) => {
-      // Cleanup gate: turning the host setting off must not strand an open chat whose owner can
-      // then never close it. See the rule on `requireStructuredCleanupHost`.
       const host = requireStructuredCleanupHost(ctx)
       // Terminal-disposal closes use this RPC without the session-tabs retirement RPC.
       if (typeof host.setSessionTabVisibility === 'function') {
         await host.setSessionTabVisibility(params.sessionId, false)
       }
-      await host.close(params.sessionId)
+      // Clients call this only when the user closes this chat's tab or cancels its launch.
+      await host.close(params.sessionId, 'user-close')
       return { ok: true as const }
     }
   }),
@@ -301,8 +303,6 @@ export const STRUCTURED_AGENT_SESSION_METHODS = [
     name: 'agentSession.unsubscribe',
     params: UnsubscribeParams,
     handler: async (params, ctx) => {
-      // Why: cleanup must stay available after the setting is disabled, so an admitted caller can
-      // retire resources it already owns; the base still comes from main's shared helper.
       requireStructuredCleanupHost(ctx)
       const base = subscriptionBaseFor(ctx, params.sessionId)
       if (params.subscriptionId) {

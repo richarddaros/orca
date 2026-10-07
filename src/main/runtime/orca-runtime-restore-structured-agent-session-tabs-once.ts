@@ -27,6 +27,7 @@ import { isWindowsAbsolutePathLike } from '../../shared/cross-platform-path'
 import { isWslUncPath } from '../../shared/wsl-paths'
 import { parseAppSshPtyId } from '../../shared/ssh-pty-id'
 import type { PtyProcessInspection } from '../providers/pty-process-inspection'
+import type { StructuredAgentId } from '../../shared/agent-session-provider-handle'
 
 export class OrcaRuntimeWithRestoreStructuredAgentSessionTabsOnce extends OrcaRuntimeWithGetStructuredAgentSessionCreateSupport {
   /** Projects only: a replacement's chat already has its tab in the store, which the /clear commit
@@ -60,7 +61,11 @@ export class OrcaRuntimeWithRestoreStructuredAgentSessionTabsOnce extends OrcaRu
     const profileIds = collectSavedStructuredAgentSessionIds(
       this.store?.getWorkspaceSession?.(LOCAL_EXECUTION_HOST_ID) ?? null
     )
-    const targets = persistedVisibleIndex.present ? persistedVisibleIndex.sessionIds : profileIds
+    // Unrecorded, the profile's chats join the tabs chats opened while the import was owed left.
+    // First: after a /clear the profile's chat would take their tab id, so seeds hit tabIdTaken.
+    const targets = persistedVisibleIndex.present
+      ? persistedVisibleIndex.sessionIds
+      : [...new Set([...persistedVisibleIndex.sessionIds, ...profileIds])]
     await host?.restoreReadableSessions(targets)
     for (const worktreeId of this.getKnownWorkspaceSessionWorktreeIds()) {
       this.hydrateHeadlessMobileSessionTabsFromWorkspaceSession(worktreeId, {
@@ -69,10 +74,8 @@ export class OrcaRuntimeWithRestoreStructuredAgentSessionTabsOnce extends OrcaRu
       })
     }
     this.hydrateHeadlessMobileSessionTabsFromWorkspaceSession()
+    // Every session here is of an agent this host registered: its store holds no other agent's records.
     const restored = (host?.listSessionTabs() ?? []).flatMap((session) => {
-      if (session.agent !== 'codex' && session.agent !== 'claude') {
-        return []
-      }
       let sessionId = session.sessionId
       while (sessionId.startsWith('agent-session:')) {
         sessionId = sessionId.slice('agent-session:'.length)
@@ -92,9 +95,12 @@ export class OrcaRuntimeWithRestoreStructuredAgentSessionTabsOnce extends OrcaRu
       this.projectStructuredAgentSessionTab({ ...session, activate: false, notify: false })
     }
     const wasUnverifiable = this.structuredAgentSessionInventoryUnverifiable
-    // No host means no one can say which chats exist; with none on disk, empty is the answer.
+    // No host, or one still owed the records file's chats, means no one can say which chats exist;
+    // with none on disk, empty is the answer.
+    const importOwed =
+      typeof host?.legacyRecordImportOwed === 'function' && host.legacyRecordImportOwed()
     this.structuredAgentSessionInventoryUnverifiable =
-      !host && this.hasPersistedStructuredAgentSessionStore()
+      (!host || importOwed) && this.hasPersistedStructuredAgentSessionStore()
     // This restore published quietly; subscribers still hold the frames that said "cannot tell".
     if (wasUnverifiable && !this.structuredAgentSessionInventoryUnverifiable) {
       this.notifyMobileSessionTabSnapshots()
@@ -104,7 +110,7 @@ export class OrcaRuntimeWithRestoreStructuredAgentSessionTabsOnce extends OrcaRu
   async publishStructuredAgentSessionTab(input: {
     workspaceId: string
     sessionId: string
-    agent: 'claude' | 'codex'
+    agent: StructuredAgentId
     activate: boolean
     notify?: boolean
     replacesSessionId?: string
@@ -113,11 +119,17 @@ export class OrcaRuntimeWithRestoreStructuredAgentSessionTabsOnce extends OrcaRu
   }): Promise<void> {
     const host = getStructuredAgentSessionHost()
     if (typeof host?.setSessionTabVisibility === 'function') {
-      await host.setSessionTabVisibility(
-        input.sessionId,
-        true,
-        ...(input.tabId ? [input.tabId] : [])
-      )
+      // The restore index is bookkeeping: one that cannot be written (a newer Orca's records, a
+      // failing disk) is reported, and the tab still opens.
+      await host
+        .setSessionTabVisibility(input.sessionId, true, ...(input.tabId ? [input.tabId] : []))
+        .catch((error: unknown) => {
+          host.deps.logger.warn('recording an opened chat tab failed', {
+            scope: 'tab-visibility-open',
+            sessionId: input.sessionId,
+            error
+          })
+        })
     }
     this.projectStructuredAgentSessionTab(input)
   }
@@ -126,7 +138,7 @@ export class OrcaRuntimeWithRestoreStructuredAgentSessionTabsOnce extends OrcaRu
   projectStructuredAgentSessionTab(input: {
     workspaceId: string
     sessionId: string
-    agent: 'claude' | 'codex'
+    agent: StructuredAgentId
     activate: boolean
     notify?: boolean
     replacesSessionId?: string
@@ -246,9 +258,10 @@ export class OrcaRuntimeWithRestoreStructuredAgentSessionTabsOnce extends OrcaRu
   async searchRepoRefs(
     repoSelector: string,
     query: string,
-    limit = DEFAULT_REPO_SEARCH_REFS_LIMIT
+    limit = DEFAULT_REPO_SEARCH_REFS_LIMIT,
+    includeQualifiedRefs = true
   ): Promise<RuntimeRepoSearchRefs> {
-    return this.repositoryRefQueries.search(repoSelector, query, limit)
+    return this.repositoryRefQueries.search(repoSelector, query, limit, includeQualifiedRefs)
   }
 
   protected async resolveHostedReviewTarget(args: {

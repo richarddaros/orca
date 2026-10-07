@@ -5,7 +5,10 @@
 
 import { act, cleanup, renderHook, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { AgentJournalSubmission } from '../../../../shared/agent-session-journal-types'
+import type {
+  AgentJournalRenderItem,
+  AgentJournalSubmission
+} from '../../../../shared/agent-session-journal-types'
 import type { StructuredAgentSessionOutboxEntry } from '../../../../shared/structured-agent-session-outbox'
 import {
   hasUnsentStructuredAgentSessionOutboxEntry,
@@ -24,6 +27,8 @@ vi.mock('@/runtime/structured-agent-session-client', () => ({
 
 import { useStructuredAgentSessionOutbox } from './use-structured-agent-session-outbox'
 import { readOutbox } from './structured-agent-session-outbox-storage'
+
+const NO_JOURNAL_ITEMS: readonly AgentJournalRenderItem[] = []
 
 // One object: a target rebuilt each render reads as a new owner, which re-sends what is on its way.
 const TARGET = { kind: 'local' } as const
@@ -82,6 +87,7 @@ describe('a Stop withdrawing what the host does not hold', () => {
     )
     const { result } = renderHook(() =>
       useStructuredAgentSessionOutbox({
+        journalItems: NO_JOURNAL_ITEMS,
         sessionId: 'session-1',
         target: TARGET,
         fence: 1,
@@ -105,9 +111,18 @@ describe('a Stop withdrawing what the host does not hold', () => {
     )
     await act(async () => new Promise((resolve) => setTimeout(resolve, 50)))
 
-    // The host's answer to it, not this Stop, decides whether it comes back.
-    expect(result.current.outbox.map((candidate) => candidate.clientMessageId)).toEqual([firstId])
-    expect(readOutbox('session-1').map((candidate) => candidate.clientMessageId)).toEqual([firstId])
+    // The host's answer to it, not this Stop, decides whether it comes back. With no composer to
+    // take it, the one behind it stays as not sent, on its Retry, and never goes out by itself.
+    const states = (entries: readonly { clientMessageId: string; state: string }[]) =>
+      entries.map((candidate) => [candidate.clientMessageId === firstId, candidate.state])
+    expect(states(result.current.outbox)).toEqual([
+      [true, 'dispatching'],
+      [false, 'rejected']
+    ])
+    expect(states(readOutbox('session-1', { recoverDispatching: false }))).toEqual([
+      [true, 'dispatching'],
+      [false, 'rejected']
+    ])
     expect(sentTexts()).toEqual(['first'])
   })
 
@@ -120,7 +135,7 @@ describe('a Stop withdrawing what the host does not hold', () => {
     ]
 
     expect(
-      withdrawUnsentStructuredAgentSessionOutboxEntries(entries, [pending('held')], null, null).map(
+      withdrawUnsentStructuredAgentSessionOutboxEntries(entries, [pending('held')], null).map(
         (candidate) => candidate.clientMessageId
       )
     ).toEqual(['held', 'refused'])
@@ -128,27 +143,26 @@ describe('a Stop withdrawing what the host does not hold', () => {
 
   it('leaves every message that waits on its Retry, not only a refused one', () => {
     const entries = [
-      entry('blocked', 'queued'),
+      { ...entry('blocked', 'queued'), lastFailure: { kind: 'failed' as const } },
       { ...entry('retried-in-doubt', 'unconfirmed'), retryAfterUnknownSubmittedAt: 10 },
       entry('probed-in-doubt', 'unconfirmed'),
       entry('local', 'queued')
     ]
 
     expect(
-      withdrawUnsentStructuredAgentSessionOutboxEntries(entries, [], 'blocked', null).map(
+      withdrawUnsentStructuredAgentSessionOutboxEntries(entries, [], null).map(
         (candidate) => candidate.clientMessageId
       )
     ).toEqual(['blocked', 'retried-in-doubt'])
-    expect(hasUnsentStructuredAgentSessionOutboxEntry(entries.slice(0, 2), [], 'blocked')).toBe(
-      false
-    )
-    expect(hasUnsentStructuredAgentSessionOutboxEntry(entries, [], 'blocked')).toBe(true)
+    expect(hasUnsentStructuredAgentSessionOutboxEntry(entries.slice(0, 2), [])).toBe(false)
+    expect(hasUnsentStructuredAgentSessionOutboxEntry(entries, [])).toBe(true)
   })
 
   it('keeps a message whose send failed for its Retry', async () => {
     mocks.call.mockRejectedValue(new Error('the host refused the frame'))
     const { result } = renderHook(() =>
       useStructuredAgentSessionOutbox({
+        journalItems: NO_JOURNAL_ITEMS,
         sessionId: 'session-1',
         target: TARGET,
         fence: 1,
@@ -156,7 +170,7 @@ describe('a Stop withdrawing what the host does not hold', () => {
       })
     )
     act(() => expect(result.current.send('first')).toBe(true))
-    await waitFor(() => expect(result.current.blockedClientMessageId).not.toBeNull())
+    await waitFor(() => expect(result.current.outbox[0]?.lastFailure).toEqual({ kind: 'failed' }))
 
     act(() => result.current.withdrawUnsent())
 

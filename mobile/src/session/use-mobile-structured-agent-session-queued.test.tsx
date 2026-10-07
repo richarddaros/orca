@@ -13,6 +13,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { structuredAgentSessionPayloadFingerprint } from '../../../src/shared/structured-agent-session-mutation'
 import type { AgentSessionSubscribeEvent } from '../../../src/shared/agent-session-wire'
 import type { RpcClient } from '../transport/rpc-client'
+import type { RpcResponse } from '../transport/types'
 import { markRpcDeliveryUnknown } from '../transport/rpc-delivery-ambiguity'
 import { resetMobileStructuredSendOperationJournalForTests } from './mobile-structured-send-operation-journal'
 import type { StructuredAgentSessionHostSupport } from './mobile-structured-agent-session-host-support'
@@ -532,7 +533,8 @@ describe('mobile structured queued messages', () => {
           state: 'waiting',
           paused: false,
           needsAttention: false,
-          caption: null
+          caption: null,
+          attribution: null
         }
       ])
       // A frame without the field leaves the list alone; null empties it.
@@ -567,12 +569,29 @@ describe('mobile structured queued messages', () => {
       expect(hook!.queued.cards.map((card) => card.messageId)).toEqual(['same-id'])
     })
 
-    it('shows no cards from an incapable host even if a list arrives', async () => {
-      await mountSession(
-        LEGACY,
-        snapshotEvent({ queuedMessages: [queuedDraft({ messageId: 'draft-1' })] })
+    // A host that does not queue sends still keeps a message it accepted and never sent across a
+    // restart or a close, and publishes it as a card; only queueing a new send is gated.
+    it('shows the cards a host that does not queue sends publishes', async () => {
+      await mountSession(LEGACY)
+      act(() =>
+        listener?.(
+          batchEvent(
+            [
+              queuedDraft({ messageId: 'kept-1', paused: true, pausedReason: 'kept' }),
+              queuedDraft({ messageId: 'behind', position: 2 })
+            ],
+            [],
+            // This host publishes no restart pause; a Stop's stands in for any queue-wide one.
+            { reason: 'stopped' }
+          )
+        )
       )
-      expect(hook!.queued.cards).toEqual([])
+      expect(hook!.queued.cards.map(({ messageId, caption }) => ({ messageId, caption }))).toEqual([
+        { messageId: 'kept-1', caption: 'Not sent yet — tap Send to send it' },
+        { messageId: 'behind', caption: null }
+      ])
+      // The kept card is held on its own, so Resume would send the card behind it.
+      expect(hook!.queued.pause).toEqual({ reason: 'stopped' })
     })
   })
 
@@ -603,6 +622,32 @@ describe('mobile structured queued messages', () => {
         expect(await hook!.queued.send('draft-1')).toBe(true)
       })
       expect(requestOf('agentSession.queuedMessageSend').params.messageId).toBe('draft-1')
+    })
+
+    it('each press of a card action carries its own id, even while an earlier press is unanswered', async () => {
+      const held = Promise.withResolvers<RpcResponse>()
+      sendRequest.mockImplementation(async (method) =>
+        method === 'agentSession.queuedMessageSend' || method === 'agentSession.queuedMessageDelete'
+          ? held.promise
+          : method === 'agentSession.options'
+            ? ok({ models: [], current: {} })
+            : ok({})
+      )
+      await mountSession(CAPABLE)
+      const presses: Promise<boolean>[] = []
+      act(() => {
+        presses.push(hook!.queued.send('draft-1'), hook!.queued.send('draft-1'))
+        presses.push(hook!.queued.delete('draft-1'), hook!.queued.delete('draft-1'))
+      })
+      await act(async () => {
+        held.resolve(ok({}))
+        await Promise.all(presses)
+      })
+      for (const method of ['agentSession.queuedMessageSend', 'agentSession.queuedMessageDelete']) {
+        expect(requestOf(method, 1).envelope.clientOperationId).not.toBe(
+          requestOf(method, 0).envelope.clientOperationId
+        )
+      }
     })
 
     it('Delete reads the union result: a dispatched draft was already sent', async () => {

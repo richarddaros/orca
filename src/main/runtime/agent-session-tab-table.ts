@@ -114,6 +114,26 @@ function reopenedTabId(sessionId: string, held: (tabId: string) => boolean): str
   return tabId
 }
 
+/** The sessions whose chat tab is shown, in tab order, skipping any without a record. */
+export function listVisibleAgentSessionIds(state: AgentSessionStoreState): string[] {
+  return (state.sessionTabs?.sessionIds() ?? []).filter((sessionId) => state.records.has(sessionId))
+}
+
+/** Unrecorded, `sessionIds` are the tab rows a chat opened while the import was owed left. */
+export function agentSessionVisibleTabIndex(state: AgentSessionStoreState): {
+  present: boolean
+  sessionIds: string[]
+} {
+  return {
+    present: state.sessionTabs !== null,
+    sessionIds: state.sessionTabs
+      ? listVisibleAgentSessionIds(state)
+      : (state.unrecordedSessionTabs?.sessionIds() ?? []).filter((sessionId) =>
+          state.records.has(sessionId)
+        )
+  }
+}
+
 export function setAgentSessionTabVisibility(
   state: AgentSessionStoreState,
   sessionId: string,
@@ -137,30 +157,22 @@ export function showAgentSessionTabs(
 ): void {
   for (const sessionId of sessionIds) {
     if (state.records.has(sessionId)) {
-      setAgentSessionTabVisibility(state, sessionId, true)
+      setAgentSessionTabVisibility(
+        state,
+        sessionId,
+        true,
+        state.unrecordedSessionTabs?.tabIdFor(sessionId)
+      )
     }
   }
 }
 
 export type PersistedAgentSessionTab = { tabId: string; sessionId: string }
 
-export function serializeAgentSessionTabTable(table: AgentSessionTabTable): {
-  sessionTabs: PersistedAgentSessionTab[]
-  visibleSessionIds: string[]
-} {
-  return {
-    sessionTabs: table.entries().map(([tabId, sessionId]) => ({ tabId, sessionId })),
-    // Written for older builds, which restore tabs from this list; never read beside the table.
-    visibleSessionIds: table.sessionIds()
-  }
-}
-
 /**
- * Reads the persisted table, or seeds it from what older builds wrote: the visible session list and,
- * for a chat created by a build that recorded one, the tab id on its record. That record field is
- * read here and nowhere else, and only when the file carries no table.
- *
- * Deterministic on purpose: a parsed store must hash the same on every read of the same bytes.
+ * Reads the records file's table, or seeds it from what older builds wrote: the visible session list
+ * and, for a chat created by a build that recorded one, the tab id on its record. That record field
+ * is read here and nowhere else, and only when the file carries no table.
  */
 export function parseAgentSessionTabTable(
   file: { sessionTabs?: unknown; visibleSessionIds?: unknown },

@@ -1,5 +1,5 @@
 // Card projection policy: queue order, derived hold labels (the wire carries
-// none), and the presentation-only suppression of a card whose submission
+// holds, not labels), and the presentation-only suppression of a card whose submission
 // already arrived — a queued draft is otherwise never a transcript bubble.
 
 import { describe, expect, it } from 'vitest'
@@ -9,7 +9,9 @@ import type { StructuredAgentSessionOutboxEntry } from '../../../../shared/struc
 import {
   newestSteerableQueuedMessageCard,
   outboxOutsideQueuedCards,
-  projectQueuedMessageCards
+  projectQueuedMessageCards,
+  queuedMessageCardSteers,
+  queuedMessagesQueuePause
 } from './structured-agent-session-queued-cards'
 
 function draft(
@@ -159,6 +161,52 @@ describe('queued message cards', () => {
     ).toBe('awaiting-answer')
   })
 
+  it('a paused queue holds every waiting card, in order: an answer does not drain it', () => {
+    const cards = projectQueuedMessageCards([draft('held', 1), draft('typed-after', 2)], [], {
+      hasPendingPrompt: true,
+      queuePaused: true
+    })
+    expect(cards.map((card) => card.hold)).toEqual(['queue-paused', 'queue-paused'])
+    // Still Steer: the header row, not the card, says it waits.
+    expect(cards.map((card) => queuedMessageCardSteers(card))).toEqual([true, true])
+  })
+
+  it("the header names the queue's pause while it holds a card, and none over cards Resume would not send", () => {
+    const stopped = { reason: 'stopped' } as const
+    const project = (messages: AgentSessionQueuedMessage[], queuePaused = true) =>
+      projectQueuedMessageCards(messages, [], { hasPendingPrompt: false, queuePaused })
+    expect(queuedMessagesQueuePause(project([draft('held', 1)]), stopped)).toEqual(stopped)
+    expect(queuedMessagesQueuePause(project([draft('held', 1)]), { reason: 'cleared' })).toEqual({
+      reason: 'cleared'
+    })
+    const unsendable = [
+      draft('returned', 1, { state: 'returned', returnedReason: null }),
+      draft('behind', 2),
+      draft('failed', 3, { paused: true, pausedReason: 'send_failed' }),
+      draft('kept', 4, { paused: true, pausedReason: 'kept' })
+    ]
+    expect(queuedMessagesQueuePause(project(unsendable), stopped)).toBeNull()
+    // No published pause (an idle chat after a restart): plain cards, no header.
+    const unpaused = project([draft('waiting', 1)], false)
+    expect(unpaused.map((card) => card.hold)).toEqual(['turn'])
+    expect(queuedMessagesQueuePause(unpaused, null)).toBeNull()
+  })
+
+  // A kept card is held on its own, like a failed one: the host sends the cards behind it.
+  it('a card behind a kept or a send_failed card is not held by it', () => {
+    const cards = projectQueuedMessageCards(
+      [
+        draft('failed', 1, { paused: true, pausedReason: 'send_failed' }),
+        draft('after-failed', 2),
+        draft('kept', 3, { paused: true, pausedReason: 'kept' }),
+        draft('behind', 4)
+      ],
+      [],
+      IDLE
+    )
+    expect(cards.map((card) => card.hold)).toEqual(['paused', 'turn', 'paused', 'turn'])
+  })
+
   it('steers the newest card', () => {
     const cards = projectQueuedMessageCards([draft('a', 1), draft('b', 2)], [], IDLE)
     expect(newestSteerableQueuedMessageCard(cards)?.messageId).toBe('b')
@@ -186,21 +234,21 @@ describe('queued message cards', () => {
       entry('a', { state: 'dispatching', lastAttemptAt: 2, sentDelivery: 'queue-if-active' }),
       entry('b')
     ]
-    expect(ids(outboxOutsideQueuedCards(inFlight, [], true, null, QUEUEING))).toEqual([])
-    expect(ids(outboxOutsideQueuedCards(inFlight, [], false, null, QUEUEING))).toEqual(['a', 'b'])
-    // Refused and held for Retry: its text, and everything waiting behind it, stays in view.
+    expect(ids(outboxOutsideQueuedCards(inFlight, [], true, QUEUEING))).toEqual([])
+    expect(ids(outboxOutsideQueuedCards(inFlight, [], false, QUEUEING))).toEqual(['a', 'b'])
+    // Refused and held for Retry: its text stays in view, and what follows it is on its way.
     const refused = [entry('a', { lastFailure: { kind: 'failed' } }), entry('b')]
-    expect(ids(outboxOutsideQueuedCards(refused, [], true, 'a', QUEUEING))).toEqual(['a', 'b'])
+    expect(ids(outboxOutsideQueuedCards(refused, [], true, QUEUEING))).toEqual(['a'])
     // A rejected send holds nothing up: what follows it is still on its way to a card.
     const rejected = [
       entry('a', { state: 'rejected', lastFailure: { kind: 'rejected', reason: null } }),
       entry('b')
     ]
-    expect(ids(outboxOutsideQueuedCards(rejected, [], true, null, QUEUEING))).toEqual(['a'])
+    expect(ids(outboxOutsideQueuedCards(rejected, [], true, QUEUEING))).toEqual(['a'])
     const unconfirmed = [entry('a', { state: 'unconfirmed' }), entry('b')]
-    expect(ids(outboxOutsideQueuedCards(unconfirmed, [], true, null, QUEUEING))).toEqual(['a', 'b'])
+    expect(ids(outboxOutsideQueuedCards(unconfirmed, [], true, QUEUEING))).toEqual(['a', 'b'])
     // Once the host visibly holds it, it is a card whatever this queue last heard.
-    expect(ids(outboxOutsideQueuedCards(unconfirmed, ['a'], true, null, QUEUEING))).toEqual(['b'])
+    expect(ids(outboxOutsideQueuedCards(unconfirmed, ['a'], true, QUEUEING))).toEqual(['b'])
   })
 
   it('hides a send only by what its request carries: a plain one is always a bubble', () => {
@@ -222,12 +270,34 @@ describe('queued message cards', () => {
       entries.map((candidate) => candidate.clientMessageId)
     // The capability is unknown: a new send goes out plain, so it stays in view.
     const unknown = { capability: 'unknown', enabled: true } as const
-    expect(ids(outboxOutsideQueuedCards([entry('new')], [], true, null, unknown))).toEqual(['new'])
+    expect(ids(outboxOutsideQueuedCards([entry('new')], [], true, unknown))).toEqual(['new'])
     // A send that went out plain stays a bubble; one that went out queued replays queued.
     const sent = [
       entry('plain', { state: 'dispatching', lastAttemptAt: 2, sentDelivery: null }),
       entry('queued', { state: 'dispatching', lastAttemptAt: 2, sentDelivery: 'queue-if-active' })
     ]
-    expect(ids(outboxOutsideQueuedCards(sent, [], true, null, unknown))).toEqual(['plain'])
+    expect(ids(outboxOutsideQueuedCards(sent, [], true, unknown))).toEqual(['plain'])
+  })
+})
+
+describe("another agent's card", () => {
+  it('carries who it is from, read through the shared reader', () => {
+    const from = {
+      kind: 'agent' as const,
+      senders: [
+        {
+          party: { address: 'term_a', terminalHandle: 'term_a', orcaSessionId: null },
+          name: 'Coder'
+        }
+      ],
+      orchestration: null
+    }
+    const agentDraft = draft('a', 1)
+    const cards = projectQueuedMessageCards(
+      [{ ...agentDraft, body: { ...agentDraft.body, from } }, draft('b', 2)],
+      [],
+      { hasPendingPrompt: false }
+    )
+    expect(cards.map((card) => card.from)).toEqual([from, undefined])
   })
 })

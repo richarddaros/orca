@@ -23,6 +23,7 @@ const mocks = vi.hoisted(() => ({
 }))
 let items: AgentJournalRenderItem[] = []
 let queuedMessages: AgentSessionQueuedMessage[] | undefined
+let nextQueuedMessageId: string | null = null
 let outboxEntries: StructuredAgentSessionOutboxEntry[] = []
 
 vi.mock('@/runtime/structured-agent-session-client', () => ({
@@ -39,7 +40,7 @@ vi.mock('./use-structured-agent-session-read', () => ({
       status: 'ready',
       error: null,
       hasOlder: false,
-      ...(queuedMessages !== undefined ? { queuedMessages } : {})
+      ...(queuedMessages !== undefined ? { queuedMessages, nextQueuedMessageId } : {})
     },
     loadingOlder: false,
     loadOlder: vi.fn()
@@ -54,7 +55,6 @@ vi.mock('./use-structured-agent-session-outbox', () => ({
     mocks.outboxArgs.push(args)
     return {
       outbox: outboxEntries,
-      blockedClientMessageId: null,
       error: null,
       send: vi.fn(),
       retry: vi.fn(),
@@ -75,6 +75,7 @@ import {
   readNativeChatDraftCache
 } from './native-chat-draft-cache'
 import { useStructuredAgentSession } from './use-structured-agent-session'
+import { nativeChatStructuredStopControls } from './native-chat-structured-stop-controls'
 
 const RUNNING_TURN: AgentJournalRenderItem = {
   itemId: 'turn-1',
@@ -83,6 +84,28 @@ const RUNNING_TURN: AgentJournalRenderItem = {
   observedAt: 1,
   body: { kind: 'turn', turnId: 'provider-turn', state: 'running' }
 }
+
+/** A pending approval; one of a subject kind this build does not know cannot be answered here. */
+function approval(subject: Record<string, unknown>): AgentJournalRenderItem {
+  return JSON.parse(
+    JSON.stringify({
+      itemId: `approval-${String(subject.kind)}`,
+      revision: 1,
+      sequence: 2,
+      observedAt: 1,
+      body: {
+        kind: 'approval',
+        title: 'Review',
+        detail: null,
+        subject,
+        options: [{ id: 'allow', label: 'Approve' }],
+        resolution: { state: 'pending', selectedOptionId: null, resolvedBy: null, resolvedAt: null }
+      }
+    })
+  )
+}
+
+const newerApproval = (): AgentJournalRenderItem => approval({ kind: 'diff', path: 'a.ts' })
 
 function draft(id: string): AgentSessionQueuedMessage {
   return {
@@ -128,6 +151,7 @@ beforeEach(() => {
   )
   items = [RUNNING_TURN]
   queuedMessages = undefined
+  nextQueuedMessageId = null
   outboxEntries = []
   localStorage.clear()
   clearNativeChatDraftCacheForTests()
@@ -156,6 +180,45 @@ describe('against a capable host', () => {
     expect(mocks.outboxArgs.at(-1)?.queueDelivery).toEqual({
       capability: 'supported',
       enabled: false
+    })
+  })
+
+  // While a Stop runs, the composer says what a send made now does: queued after the stop, or sent.
+  describe('the words for a send after a Stop', () => {
+    const afterStop = (queueFollowUps?: boolean) => {
+      const { result } = render(queueFollowUps)
+      return nativeChatStructuredStopControls(result.current, true).composer.afterStop
+    }
+
+    it('say it queues while the setting is on', () => {
+      expect(afterStop()).toBe('queue')
+    })
+
+    it('say it is sent while the setting is off, though the host queues', () => {
+      expect(afterStop(false)).toBe('send')
+    })
+
+    it('say it is sent while every pending prompt is one this build cannot answer', () => {
+      items = [RUNNING_TURN, newerApproval()]
+      expect(afterStop()).toBe('send')
+    })
+  })
+
+  // The host's queue would hold a send behind a prompt nothing here can settle.
+  it('sends immediately while every pending prompt is one this build cannot answer', () => {
+    const newer = newerApproval()
+    items = [newer]
+    render()
+    expect(mocks.outboxArgs.at(-1)?.queueDelivery).toEqual({
+      capability: 'supported',
+      enabled: false
+    })
+    mocks.outboxArgs.length = 0
+    items = [newer, approval({ kind: 'plan', text: 'do it' })]
+    render()
+    expect(mocks.outboxArgs.at(-1)?.queueDelivery).toEqual({
+      capability: 'supported',
+      enabled: true
     })
   })
 
@@ -211,7 +274,8 @@ describe('against a capable host', () => {
     )
   })
 
-  it("an unconfirmed /clear's next press replays its operation id (the host refuses any other)", async () => {
+  // The host finds an earlier /clear from its own journal, so the client keeps no id for it.
+  it("an unconfirmed /clear's next press goes out under its own id", async () => {
     items = []
     mocks.call.mockImplementation(async (_target, method) =>
       method === 'agentSession.conversationCommand'
@@ -235,7 +299,7 @@ describe('against a capable host', () => {
       .filter(([, method]) => method === 'agentSession.conversationCommand')
       .map(([, , params]) => ConversationCommandParams.parse(params).envelope.clientOperationId)
     expect(ids).toHaveLength(2)
-    expect(ids[1]).toBe(ids[0])
+    expect(ids[1]).not.toBe(ids[0])
   })
 
   it('a mid-turn queue send is never a transcript bubble, before or after the host holds it', () => {
@@ -270,6 +334,20 @@ describe('against a capable host', () => {
     queuedMessages = undefined
     const idleUnheld = render()
     expect(JSON.stringify(idleUnheld.result.current.messages)).toContain('awaiting the answer')
+  })
+
+  it('reads as working while the host names the card its queue sends next, with nothing to stop yet', () => {
+    // A turn just ended; the queue's send of `draft-1` is the host's next update.
+    items = []
+    queuedMessages = [draft('draft-1')]
+    nextQueuedMessageId = 'draft-1'
+    const { result } = render()
+    expect(result.current).toMatchObject({ isWorking: true, queueSendsNext: true, canStop: false })
+    expect(result.current.queuedMessages.cards.map((card) => card.hold)).toEqual(['turn'])
+    // Where the host would refuse that send, it names none: the chat reads idle.
+    nextQueuedMessageId = null
+    const refused = render()
+    expect(refused.result.current).toMatchObject({ isWorking: false, queueSendsNext: false })
   })
 
   it('shows host-held drafts as cards, never as transcript bubbles', () => {

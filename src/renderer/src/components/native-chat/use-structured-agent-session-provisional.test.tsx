@@ -6,7 +6,7 @@ import type { StructuredAgentSessionState } from '../../../../shared/structured-
 
 const mocks = vi.hoisted(() => ({
   call: vi.fn<(target: unknown, method: string, params: unknown) => Promise<unknown>>(),
-  hold: vi.fn<(args: { enabled?: boolean }) => void>(),
+  hold: vi.fn((_args: { enabled?: boolean }) => ({ error: null })),
   read: vi.fn<(args: { isVisible?: boolean }) => void>(),
   outbox: vi.fn<(args: { fence: number | null; submissions: readonly unknown[] }) => void>(),
   send: vi.fn<(text: string) => boolean>(),
@@ -16,7 +16,8 @@ const mocks = vi.hoisted(() => ({
 let readState: StructuredAgentSessionState
 
 vi.mock('@/runtime/structured-agent-session-client', () => ({
-  callStructuredAgentSession: mocks.call
+  callStructuredAgentSession: mocks.call,
+  supportsStructuredAgentSessionQuietRepeatedStop: vi.fn(async () => false)
 }))
 
 vi.mock('./use-structured-agent-session-hold', () => ({
@@ -43,7 +44,6 @@ vi.mock('./use-structured-agent-session-outbox', () => ({
     mocks.outbox(args)
     return {
       outbox: [],
-      blockedClientMessageId: null,
       error: null,
       send: mocks.send,
       retry: mocks.retry

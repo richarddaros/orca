@@ -26,7 +26,8 @@ export function useStructuredAgentSessionTransport(args: {
   const read = useStructuredAgentSessionRead({
     sessionId,
     target,
-    isVisible: providerVisible || (enabled && hasUndelivered)
+    isVisible: providerVisible || (enabled && hasUndelivered),
+    isViewed: providerVisible
   })
   const stateRef = useRef(read.state)
   const mutation = useStructuredAgentSessionMutate({
@@ -38,5 +39,6 @@ export function useStructuredAgentSessionTransport(args: {
   useEffect(() => {
     stateRef.current = read.state
   }, [read.state])
-  return { ...read, ...mutation, providerVisible }
+  // `stateRef`: the read state now, for a reply that lands after the render that sent it.
+  return { ...read, ...mutation, providerVisible, stateRef }
 }
