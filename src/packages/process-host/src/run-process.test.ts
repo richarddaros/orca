@@ -53,6 +53,13 @@ describe('resolveSpawn', () => {
     expect(resolved.options.windowsHide).toBe(true)
   })
 
+  it('puts a reaped child in its own process group off Windows only', () => {
+    const spec = { program: '/usr/bin/agy', reapProcessGroupOnExit: true }
+    expect(resolveSpawn(spec, 'linux').options.detached).toBe(true)
+    expect(resolveSpawn(spec, 'darwin').options.detached).toBe(true)
+    expect(resolveSpawn(spec, 'win32').options.detached).toBeUndefined()
+  })
+
   it('treats a .cmd path as an ordinary program off Windows', () => {
     // A POSIX host running a file that happens to end in .cmd must not gain a
     // cmd.exe hop; the extension carries no meaning there.
@@ -206,6 +213,50 @@ describe('abort', () => {
     },
     30_000
   )
+})
+
+describe('reaping the process group on exit', () => {
+  // A descendant that outlives a root which exits cleanly, with its own stdio so it holds no pipe.
+  const abandonedChildScript = 'sleep 30 >/dev/null 2>&1 & echo $!'
+  const isAlive = (pid: number): boolean => {
+    try {
+      process.kill(pid, 0)
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  it.skipIf(process.platform === 'win32')(
+    'stops descendants a cleanly exiting root left behind',
+    async () => {
+      const result = await runProcess({
+        program: '/bin/sh',
+        args: ['-c', abandonedChildScript],
+        reapProcessGroupOnExit: true
+      })
+      const orphan = Number(result.stdout.trim())
+      try {
+        expect(result.code).toBe(0)
+        await expect.poll(() => isAlive(orphan), { timeout: 5_000 }).toBe(false)
+      } finally {
+        if (isAlive(orphan)) {
+          process.kill(orphan, 'SIGKILL')
+        }
+      }
+    },
+    15_000
+  )
+
+  it.skipIf(process.platform === 'win32')('leaves them alone without the option', async () => {
+    const result = await runProcess({ program: '/bin/sh', args: ['-c', abandonedChildScript] })
+    const orphan = Number(result.stdout.trim())
+    try {
+      expect(isAlive(orphan)).toBe(true)
+    } finally {
+      process.kill(orphan, 'SIGKILL')
+    }
+  })
 })
 
 describe('stdin delivery failures', () => {

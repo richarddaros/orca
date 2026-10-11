@@ -42,6 +42,8 @@ export type ProcessSpec = {
   serialization?: NodeSpawnOptions['serialization']
   /** Await tree termination or observed root exit, then settle at the final deadline if unverified. */
   terminationBarrier?: boolean | ProcessTerminationBarrier
+  /** POSIX: signal the child's own process group once the root exits, reaping what it abandoned. */
+  reapProcessGroupOnExit?: boolean
   /** Called once when the child exits or tree termination is verified. */
   onChildTerminated?: () => void
 }

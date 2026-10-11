@@ -292,6 +292,11 @@ export function runProcess(
       settle(() => reject(error))
     })
     child.once('exit', (code, signal) => {
+      if (spec.reapProcessGroupOnExit && process.platform !== 'win32') {
+        // Why: a CLI can exit cleanly yet leave descendants it failed to stop (agy abandons
+        // MCP servers after a 100 ms close) alive in its group, one more per run.
+        void signalProcessTree(child, 'SIGTERM').catch(() => false)
+      }
       if (!barrierStopping) {
         rootExitedBeforeBarrier = true
       }

@@ -38,7 +38,10 @@ export function resolveSpawn(spec: ProcessSpec, platform: NodeJS.Platform): Reso
     // Why never `shell: true`: it concatenates arguments without escaping (Node
     // itself warns DEP0190) and it silently makes windowsHide a no-op.
     shell: false,
-    ...(spec.terminationBarrier && platform !== 'win32' ? { detached: true } : {})
+    // Why: both signal `-pid`, which only reaches the tree when the child leads its own group.
+    ...((spec.terminationBarrier || spec.reapProcessGroupOnExit) && platform !== 'win32'
+      ? { detached: true }
+      : {})
   }
 
   if (platform !== 'win32' || !isCmdInterpretedProgram(spec.program)) {
