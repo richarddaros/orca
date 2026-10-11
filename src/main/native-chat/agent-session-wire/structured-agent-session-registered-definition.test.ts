@@ -71,7 +71,7 @@ function readAtRest(agents: StructuredAgentRegistry) {
   const resting = {
     child: null,
     params: { provider: RECORD.provider },
-    journal: { threadGoal: () => null, contextUsage: () => null }
+    journal: { threadGoal: () => null, contextUsage: () => null, context: { floor: () => null } }
   }
   // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: the resting read touches only these members.
   const context = {
@@ -84,7 +84,7 @@ function readAtRest(agents: StructuredAgentRegistry) {
     openConversation: async () => resting,
     conversation: async () => resting
   } as unknown as StructuredAgentSessionMutationContext
-  return readStructuredAgentSessionOptions(context, RECORD.sessionId)
+  return readStructuredAgentSessionOptions(context, RECORD.sessionId, { readsWithoutModel: true })
 }
 
 describe('a registered definition', () => {
