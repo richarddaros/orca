@@ -123,6 +123,9 @@ describe('fetchAntigravityRateLimits', () => {
     const spec = h.runCommand.mock.calls[1]![0]
     expect(spec.program).toBe('/Users/x/.local/bin/agy')
     expect(spec.args).toEqual(ANTIGRAVITY_USAGE_ARGS)
+    // Why: agy abandons MCP servers it fails to close; without the reap they pile up every poll.
+    expect(spec.reapProcessGroupOnExit).toBe(true)
+    expect(h.runCommand.mock.calls[0]![0].reapProcessGroupOnExit).toBeUndefined()
     // Why the login-shell PATH: agy installs to ~/.local/bin, which Electron's inherited PATH omits.
     expect(spec.env).toEqual({ PATH: '/Users/x/.local/bin:/usr/bin' })
     expect(spec.timeoutMs).toBeGreaterThan(0)

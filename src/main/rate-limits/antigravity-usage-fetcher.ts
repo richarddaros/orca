@@ -168,7 +168,8 @@ export async function fetchAntigravityRateLimits(
       env,
       timeoutMs: ANTIGRAVITY_USAGE_TIMEOUT_MS,
       maxOutputBytes: ANTIGRAVITY_USAGE_MAX_OUTPUT_BYTES,
-      signal: options.signal
+      signal: options.signal,
+      reapProcessGroupOnExit: true
     })
   } catch (error) {
     return failed(spawnFailureMessage(error), 'cli-unavailable', now())
