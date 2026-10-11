@@ -133,3 +133,15 @@ Source-control and review changes must consider GitLab and other supported git p
 ## GitHub CLI Usage
 
 Be mindful of the user's `gh` CLI API rate limit — batch requests where possible and avoid unnecessary calls. All code, commands, and scripts must be compatible with macOS, Linux, and Windows.
+
+# Fork Sync (`richarddaros/orca`)
+
+This repository is a fork of `stablyai/orca`. Work happens on `feat/agent-hub-poc`, which must always carry every upstream bug fix and feature from upstream `main`.
+
+- Before starting or resuming work on `feat/agent-hub-poc`, confirm with `gh auth status` that the active account is `richarddaros`, bring the fork's `main` up to upstream with `gh repo sync richarddaros/orca --branch main`, then run `git fetch --prune origin` and `git rev-list --left-right --count origin/feat/agent-hub-poc...origin/main`. If the right-hand count is not zero, sync before doing anything else.
+- The fork's `main` mirrors upstream and never gets fork commits.
+- To sync, cut `chore/sync-upstream-<YYYYMMDD>` from `origin/feat/agent-hub-poc`, run `git merge --no-ff origin/main`, and open a PR into `feat/agent-hub-poc`. Never rebase, reset or force-push `feat/agent-hub-poc`, and never use `git pull`.
+- Resolve conflicts by keeping upstream behavior and re-applying the hub changes on top. After the merge, `git diff origin/main...HEAD` must list only hub files. Name in the PR every upstream change that touched a hub file.
+- Before merging the sync PR, run `pnpm install --frozen-lockfile`, `pnpm tc` and `pnpm test:agent-hub`.
+- Fork-only files keep their `.gitignore` allow-list entries. Upstream removed `docs/reference/` in stablyai/orca#26328, so the hub docs there are allow-listed one by one.
+- Fixes that are not hub-specific go on a branch cut from `origin/main`, so the same branch can also be offered upstream.
