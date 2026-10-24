@@ -2,7 +2,6 @@ import type { ChildProcess } from 'node:child_process'
 import type { ProcessSpec } from './process-spec'
 import { signalProcessTree } from './process-tree-termination'
 
-/** POSIX: signal the child's own process group once the root exits, reaping what it abandoned. */
 export function attachProcessGroupReaper(child: ChildProcess, spec: ProcessSpec): ChildProcess {
   if (spec.reapProcessGroupOnExit && process.platform !== 'win32') {
     child.once('exit', () => {

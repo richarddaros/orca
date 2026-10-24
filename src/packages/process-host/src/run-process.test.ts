@@ -288,6 +288,28 @@ describe('reaping the process group on exit', () => {
     15_000
   )
 
+  it.skipIf(process.platform === 'win32')(
+    'stops descendants when a timeout kills only the root',
+    async () => {
+      const result = await runProcess({
+        program: '/bin/sh',
+        args: ['-c', `${abandonedChildScript}; exec sleep 30`],
+        timeoutMs: 300,
+        reapProcessGroupOnExit: true
+      })
+      const orphan = Number(result.stdout.trim())
+      try {
+        expect(result.timedOut).toBe(true)
+        await expect.poll(() => isAlive(orphan), { timeout: 5_000 }).toBe(false)
+      } finally {
+        if (isAlive(orphan)) {
+          process.kill(orphan, 'SIGKILL')
+        }
+      }
+    },
+    15_000
+  )
+
   it.skipIf(process.platform === 'win32')('leaves them alone without the option', async () => {
     const result = await runProcess({ program: '/bin/sh', args: ['-c', abandonedChildScript] })
     const orphan = Number(result.stdout.trim())
