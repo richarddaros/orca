@@ -122,6 +122,7 @@ docs/**
 !docs/reference/
 !docs/reference/agent-hub-smoke.md
 !docs/reference/opencode-fork-sync.md
+!docs/reference/orca-fork-sync.md
 
 # Stably CLI (only docs/ are tracked)
 .stably/*
