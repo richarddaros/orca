@@ -53,17 +53,29 @@ Two conflicts resolve themselves:
 - `AGENTS.md`: upstream's file plus the block between the
   `<!-- fork:richarddaros/orca:start -->` and `:end -->` markers.
 
-Any other conflict, or an `AGENTS.md` without the block on both sides, stops the
-run with exit code 2 and the list of files before anything is installed. Resolve
-them in the sync worktree, keeping upstream behavior and re-applying the fork
-change, `git add` them, then run `corepack pnpm fork:sync --continue [--merge]`
-there. `--continue` refuses to run outside a `chore/sync-upstream-*` branch.
+Any other conflict, or an `AGENTS.md` that one side deleted or whose fork side has
+no block, stops the run with exit code 2 and the list of files before anything is
+installed. Resolve them in the sync worktree, keeping upstream behavior and
+re-applying the fork change, `git add` them, then run
+`corepack pnpm fork:sync --continue [--merge]` there. `--continue` refuses to run
+outside a `chore/sync-upstream-*` branch.
+
+If the fork ever adds a dependency or a patch of its own, upstream's lockfile will
+not carry it and `pnpm install --frozen-lockfile` fails right after the merge. In
+that case run `corepack pnpm install` in the sync worktree, check that
+`git diff pnpm-lock.yaml` only adds the fork's entries, `git add` it and continue.
 
 The gates before the push are `pnpm install --frozen-lockfile`, `pnpm tc`,
 `pnpm test:agent-hub`, `pnpm test:fork-sync` and every fork-changed `*.test.*`
 under `src/` with two workers. The pull request body lists every file that still
 differs from upstream, which should be only fork files, and every upstream commit
 that touched one of them.
+
+`publish` refuses uncommitted tracked changes, so the gates always test what gets
+pushed. When a gate fails after the merge commit, fix it with a new commit in the
+sync worktree and run `corepack pnpm fork:sync --continue [--merge]` again: the
+run finds the sync merge on the branch, pushes the fix and refreshes the body of
+the pull request that is already open.
 
 ## Keeping the local Orca current
 

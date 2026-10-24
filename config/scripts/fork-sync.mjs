@@ -181,13 +181,14 @@ export function toolchainProblems({ nodeVersion, userAgent, packageJson }) {
 function run(
   command,
   args,
-  { cwd, env = process.env, allowFailure = false, inherit = false, raw = false } = {}
+  { cwd, env = process.env, allowFailure = false, inherit = false, raw = false, input } = {}
 ) {
   const result = spawnSync(command, args, {
     cwd,
     env,
+    input,
     encoding: 'utf8',
-    stdio: inherit ? 'inherit' : ['ignore', 'pipe', 'pipe']
+    stdio: inherit ? 'inherit' : [input === undefined ? 'ignore' : 'pipe', 'pipe', 'pipe']
   })
   if (result.error) {
     throw result.error
@@ -414,15 +415,27 @@ export function finishMerge(worktree) {
 
 function publish(worktree, { merge }) {
   const branch = git(worktree, ['branch', '--show-current'])
-  if (
-    run('git', ['merge-base', '--is-ancestor', 'origin/main', 'HEAD'], {
-      cwd: worktree,
-      allowFailure: true
-    }).status !== 0
-  ) {
-    throw new Error('HEAD does not contain origin/main; finish the merge before --continue.')
+  const dirty = git(worktree, ['status', '--porcelain', '--untracked-files=no'])
+  if (dirty.length > 0) {
+    throw new Error(
+      `Commit or discard these changes first; the gates must test what gets pushed:\n${dirty}`
+    )
   }
-  const forkFiles = git(worktree, ['diff', '--name-only', 'origin/main', 'HEAD'])
+  // Why the merge, not HEAD: fixes committed after it must not hide what upstream brought.
+  const syncMerge = git(worktree, [
+    'rev-list',
+    '--merges',
+    '--first-parent',
+    '-n',
+    '1',
+    `origin/${FORK_LINE}..HEAD`
+  ])
+  if (syncMerge.length === 0) {
+    throw new Error(
+      `HEAD holds no upstream merge on top of origin/${FORK_LINE}; finish it before --continue.`
+    )
+  }
+  const forkFiles = git(worktree, ['diff', '--name-only', `${syncMerge}^2`, 'HEAD'])
     .split('\n')
     .filter(Boolean)
   pnpm(worktree, ['install', '--frozen-lockfile'])
@@ -433,15 +446,14 @@ function publish(worktree, { merge }) {
   if (tests.length > 0) {
     pnpm(worktree, ['test', ...tests, '--maxWorkers=2'])
   }
-  const upstreamCount = aheadBehind(worktree, `origin/${FORK_LINE}...HEAD`).behind - 1
+  const upstreamRange = `${syncMerge}^1..${syncMerge}^2`
+  const upstreamCount = Number(git(worktree, ['rev-list', '--count', upstreamRange]))
   const watched = forkFiles.filter((path) => path !== LOCKFILE)
   const upstreamChanges =
     watched.length === 0
       ? []
       : formatUpstreamChanges(
-          git(worktree, ['log', '--format=%h %s', 'HEAD^1..HEAD^2', '--', ...watched], {
-            allowFailure: true
-          })
+          git(worktree, ['log', '--format=%h %s', upstreamRange, '--', ...watched])
         )
   git(worktree, ['push', '-u', 'origin', branch], { inherit: true })
   const env = githubEnv()
@@ -456,24 +468,52 @@ function publish(worktree, { merge }) {
     'Commits do upstream que tocaram esses arquivos (revalide a reaplicação do fork):',
     ...(upstreamChanges.length > 0 ? upstreamChanges : ['- nenhum'])
   ].join('\n')
-  const url = run(
+  const existing = run(
     'gh',
     [
       'pr',
-      'create',
+      'list',
       '--repo',
       FORK_REPO,
-      '--base',
-      FORK_LINE,
       '--head',
       branch,
-      '--title',
-      `${SYNC_COMMIT_MESSAGE} (${upstreamCount} commits)`,
-      '--body',
-      body
+      '--state',
+      'open',
+      '--json',
+      'url',
+      '--jq',
+      '.[0].url // ""'
     ],
     { env }
   ).stdout
+  // Why stdin: a long body in argv can pass Windows' command-line limit.
+  if (existing.length > 0) {
+    run('gh', ['pr', 'edit', existing, '--repo', FORK_REPO, '--body-file', '-'], {
+      env,
+      input: body
+    })
+  }
+  const url =
+    existing.length > 0
+      ? existing
+      : run(
+          'gh',
+          [
+            'pr',
+            'create',
+            '--repo',
+            FORK_REPO,
+            '--base',
+            FORK_LINE,
+            '--head',
+            branch,
+            '--title',
+            `${SYNC_COMMIT_MESSAGE} (${upstreamCount} commits)`,
+            '--body-file',
+            '-'
+          ],
+          { env, input: body }
+        ).stdout
   console.log(`PR: ${url}`)
   if (merge) {
     // Why a fast-forward push: GitHub marks the PR merged without adding its own merge commit.
