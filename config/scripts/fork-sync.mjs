@@ -500,22 +500,30 @@ function publish(worktree, { merge }) {
       '--state',
       'open',
       '--json',
-      'url',
+      'number',
       '--jq',
-      '.[0].url // ""'
+      '.[0].number // ""'
     ],
     { env }
   ).stdout
   // Why stdin: a long body in argv can pass Windows' command-line limit.
-  if (existing.length > 0) {
-    run('gh', ['pr', 'edit', existing, '--repo', FORK_REPO, '--body-file', '-'], {
-      env,
-      input: body
-    })
-  }
   const url =
     existing.length > 0
-      ? existing
+      ? // Why REST: `gh pr edit` fails on gh versions that still query GitHub's retired classic projects.
+        run(
+          'gh',
+          [
+            'api',
+            '--method',
+            'PATCH',
+            `repos/${FORK_REPO}/pulls/${existing}`,
+            '--field',
+            'body=@-',
+            '--jq',
+            '.html_url'
+          ],
+          { env, input: body }
+        ).stdout
       : run(
           'gh',
           [

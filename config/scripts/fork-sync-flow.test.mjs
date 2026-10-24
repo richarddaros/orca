@@ -139,14 +139,14 @@ describe('fork sync flows against real git', () => {
 const { appendFileSync, existsSync, readFileSync, writeFileSync } = require('node:fs')
 const { spawnSync } = require('node:child_process')
 const args = process.argv.slice(2)
-const stdin = args.includes('--body-file') ? readFileSync(0, 'utf8') : ''
+const stdin = args.includes('--body-file') || args.includes('body=@-') ? readFileSync(0, 'utf8') : ''
 appendFileSync(${JSON.stringify(ghLog)}, JSON.stringify({ args, token: process.env.GH_TOKEN ?? null, stdin }) + '\\n')
 const [group, action] = args
 if (group === 'auth' && action === 'token') process.stdout.write(${JSON.stringify(TOKEN)} + '\\n')
 else if (group === 'repo' && action === 'sync') process.exit(spawnSync('git', ['push', '-q', ${JSON.stringify(origin)}, 'HEAD:refs/heads/main'], { cwd: ${JSON.stringify(upstream)}, stdio: 'inherit' }).status ?? 1)
 else if (group === 'pr' && action === 'list') process.stdout.write(existsSync(${JSON.stringify(prFile)}) ? readFileSync(${JSON.stringify(prFile)}, 'utf8') : '')
-else if (group === 'pr' && action === 'create') { writeFileSync(${JSON.stringify(prFile)}, 'https://github.com/richarddaros/orca/pull/99'); process.stdout.write('https://github.com/richarddaros/orca/pull/99\\n') }
-else if (group === 'pr' && action === 'edit') {}
+else if (group === 'pr' && action === 'create') { writeFileSync(${JSON.stringify(prFile)}, '99'); process.stdout.write('https://github.com/richarddaros/orca/pull/99\\n') }
+else if (group === 'api' && args.join(' ') === 'api --method PATCH repos/richarddaros/orca/pulls/99 --field body=@- --jq .html_url') process.stdout.write('https://github.com/richarddaros/orca/pull/99\\n')
 else process.exit(3)
 `
       )
@@ -238,7 +238,7 @@ else process.exit(3)
     it('keeps the upstream list after a fix commit and never force-pushes the line', () => {
       const box = sandbox()
       const net = forkNetwork(box)
-      captureOutput()
+      const output = captureOutput()
       main(['sync'], net.local)
       const worktree = syncWorktree(box, net.local)
       expect(gitOk(box, net.origin, 'rev-parse', 'feat/agent-hub-poc')).not.toBe(
@@ -256,9 +256,17 @@ else process.exit(3)
       expect(net.pnpmCalls()).toHaveLength(gatesBefore)
       gitOk(box, worktree, 'commit', '-q', '-am', 'fix after the merge')
 
+      const printed = output.length
       main(['sync', '--continue'], worktree)
       const edit = net.ghCalls().at(-1)
-      expect(edit.args.slice(0, 2)).toEqual(['pr', 'edit'])
+      // Why REST: `gh pr edit` fails on gh 2.45, which still queries classic projects.
+      expect(edit.args.slice(0, 4)).toEqual([
+        'api',
+        '--method',
+        'PATCH',
+        'repos/richarddaros/orca/pulls/99'
+      ])
+      expect(output.slice(printed)).toContain('PR: https://github.com/richarddaros/orca/pull/99')
       expect(edit.stdin).toContain('(2 commits do upstream)')
       expect(edit.stdin).toContain('upstream touches the fork file (`#123`)')
 
