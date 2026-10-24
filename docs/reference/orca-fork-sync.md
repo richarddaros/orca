@@ -60,6 +60,13 @@ re-applying the fork change, `git add` them, then run
 `corepack pnpm fork:sync --continue [--merge]` there. `--continue` refuses to run
 outside a `chore/sync-upstream-*` branch.
 
+The merge commit runs the pre-commit hook over every file the merge stages. A clean
+textual merge can still fail it, typically when upstream lines plus a fork change push
+a file past `max-lines`. The run then stops with the hook output and leaves the merge in
+progress. Fix the fork side in the sync worktree without disabling the rule, for
+example by moving the fork code into its own module, `git add` it and run
+`corepack pnpm fork:sync --continue [--merge]`.
+
 If the fork ever adds a dependency or a patch of its own, upstream's lockfile will
 not carry it and `pnpm install --frozen-lockfile` fails right after the merge. In
 that case run `corepack pnpm install` in the sync worktree, check that
