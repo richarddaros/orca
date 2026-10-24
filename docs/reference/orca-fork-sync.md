@@ -71,11 +71,18 @@ under `src/` with two workers. The pull request body lists every file that still
 differs from upstream, which should be only fork files, and every upstream commit
 that touched one of them.
 
-`publish` refuses uncommitted tracked changes, so the gates always test what gets
+`publish` refuses uncommitted changes and untracked files, so the gates always test what gets
 pushed. When a gate fails after the merge commit, fix it with a new commit in the
 sync worktree and run `corepack pnpm fork:sync --continue [--merge]` again: the
 run finds the sync merge on the branch, pushes the fix and refreshes the body of
 the pull request that is already open.
+
+If `--merge` reports that the push to `feat/agent-hub-poc` was rejected, the line
+moved after the sync started. Never use `git pull` or force the push. Either merge
+the open pull request on GitHub, or run `git fetch origin` and
+`git merge --no-ff origin/feat/agent-hub-poc` in the sync worktree and then
+`corepack pnpm fork:sync --continue --merge` again; the run still reports the
+upstream merge, not the merge of the line.
 
 ## Keeping the local Orca current
 

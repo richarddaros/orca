@@ -415,22 +415,29 @@ export function finishMerge(worktree) {
 
 function publish(worktree, { merge }) {
   const branch = git(worktree, ['branch', '--show-current'])
-  const dirty = git(worktree, ['status', '--porcelain', '--untracked-files=no'])
+  const dirty = git(worktree, ['status', '--porcelain'])
   if (dirty.length > 0) {
     throw new Error(
       `Commit or discard these changes first; the gates must test what gets pushed:\n${dirty}`
     )
   }
-  // Why the merge, not HEAD: fixes committed after it must not hide what upstream brought.
+  // Why the merge, not HEAD: fixes or a merge of the line committed after it must not hide what upstream brought.
   const syncMerge = git(worktree, [
     'rev-list',
     '--merges',
     '--first-parent',
-    '-n',
-    '1',
     `origin/${FORK_LINE}..HEAD`
   ])
-  if (syncMerge.length === 0) {
+    .split('\n')
+    .filter(Boolean)
+    .find(
+      (sha) =>
+        run('git', ['merge-base', '--is-ancestor', `${sha}^2`, 'origin/main'], {
+          cwd: worktree,
+          allowFailure: true
+        }).status === 0
+    )
+  if (syncMerge === undefined) {
     throw new Error(
       `HEAD holds no upstream merge on top of origin/${FORK_LINE}; finish it before --continue.`
     )

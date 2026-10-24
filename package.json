@@ -38,7 +38,7 @@
     "capture:agent-transcript": "node config/scripts/ensure-native-runtime.mjs --runtime=node && node config/scripts/capture-agent-pty-transcript.mjs",
     "smoke:agent-hub": "node config/scripts/agent-hub-smoke.mjs",
     "test:agent-hub": "vitest run --config config/vitest.config.ts config/scripts/agent-hub-smoke.test.mjs",
-    "test:fork-sync": "vitest run --config config/vitest.config.ts config/scripts/fork-sync.test.mjs",
+    "test:fork-sync": "vitest run --config config/vitest.config.ts config/scripts/fork-sync.test.mjs config/scripts/fork-sync-flow.test.mjs",
     "fork:status": "node config/scripts/fork-sync.mjs status",
     "fork:sync": "node config/scripts/fork-sync.mjs sync",
     "fork:update-local": "node config/scripts/fork-sync.mjs update-local",
