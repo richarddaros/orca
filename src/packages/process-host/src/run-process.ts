@@ -5,6 +5,7 @@ import {
 } from 'node:child_process'
 import { resolveSpawn, type ResolvedSpawn } from './spawn-resolution'
 import { forceTerminateProcessTree, signalProcessTree } from './process-tree-termination'
+import { attachProcessGroupReaper } from './process-group-reaper'
 import { inFlightWindowsTreeKill } from './windows-tree-kill'
 
 import { hasSpawnObserver, notifySpawnObserver } from './spawn-observer'
@@ -54,7 +55,7 @@ export function runProcess(
     const terminationReporter = createChildTerminationReporter(spec.onChildTerminated)
     let child: ChildProcess
     try {
-      child = spawnProcess(spec)
+      child = attachProcessGroupReaper(spawnProcess(spec), spec)
     } catch (error) {
       terminationReporter.report()
       reject(error)
@@ -127,7 +128,8 @@ export function runProcess(
           signal,
           stdout: spec.captureStdoutAsBytes ? '' : stdout.text(),
           ...(spec.captureStdoutAsBytes ? { stdoutBytes: stdout.buffer() } : {}),
-          stderr: stderr.text(),
+          stderr: spec.captureStderrAsBytes ? '' : stderr.text(),
+          ...(spec.captureStderrAsBytes ? { stderrBytes: stderr.buffer() } : {}),
           timedOut,
           outputTruncated: stdout.truncated() || stderr.truncated()
         })
@@ -261,11 +263,6 @@ export function runProcess(
       settle(() => reject(error))
     })
     child.once('exit', (code, signal) => {
-      if (spec.reapProcessGroupOnExit && process.platform !== 'win32') {
-        // Why: a CLI can exit cleanly yet leave descendants it failed to stop (agy abandons
-        // MCP servers after a 100 ms close) alive in its group, one more per run.
-        void signalProcessTree(child, 'SIGTERM').catch(() => false)
-      }
       if (!barrierStopping) {
         rootExitedBeforeBarrier = true
       }
@@ -335,7 +332,8 @@ function runResolvedProcessSync(spec: ProcessSpec, resolved: ResolvedSpawn): Pro
     signal: result.signal,
     stdout: spec.captureStdoutAsBytes ? '' : (result.stdout?.toString('utf8') ?? ''),
     ...(spec.captureStdoutAsBytes ? { stdoutBytes: result.stdout ?? Buffer.alloc(0) } : {}),
-    stderr: result.stderr?.toString('utf8') ?? '',
+    stderr: spec.captureStderrAsBytes ? '' : (result.stderr?.toString('utf8') ?? ''),
+    ...(spec.captureStderrAsBytes ? { stderrBytes: result.stderr ?? Buffer.alloc(0) } : {}),
     // ENOBUFS is rethrown above, so truncated output never reaches this result.
     outputTruncated: false,
     // SIGTERM can be deliberate; only ETIMEDOUT proves a timeout.
