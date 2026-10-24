@@ -82,7 +82,9 @@ moved after the sync started. Never use `git pull` or force the push. Either mer
 the open pull request on GitHub, or run `git fetch origin` and
 `git merge --no-ff origin/feat/agent-hub-poc` in the sync worktree and then
 `corepack pnpm fork:sync --continue --merge` again; the run still reports the
-upstream merge, not the merge of the line.
+upstream merge, not the merge of the line. If that merge of the line conflicts, resolve
+and commit it by hand first: `--continue` refuses to apply the upstream
+resolutions to a merge that is not upstream.
 
 ## Keeping the local Orca current
 

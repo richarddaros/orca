@@ -1,4 +1,4 @@
-import { chmodSync, mkdirSync, writeFileSync } from 'node:fs'
+import { chmodSync, mkdirSync, realpathSync, writeFileSync } from 'node:fs'
 import { delimiter, join, sep } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 import { main, updateLocal } from './fork-sync.mjs'
@@ -93,7 +93,7 @@ describe('fork sync flows against real git', () => {
 
   // POSIX only: the fake gh is a shebang script.
   describe.skipIf(process.platform === 'win32')('sync end to end with fake gh and pnpm', () => {
-    const TOKEN = 'gho_fixture_sentinel_token'
+    const TOKEN = 'fixture-sentinel-not-a-token'
 
     function forkNetwork(box) {
       const origin = join(box.dir, 'origin.git')
@@ -193,7 +193,8 @@ else process.exit(3)
       const worktree = syncWorktree(box, net.local)
       const branch = gitOk(box, worktree, 'branch', '--show-current')
       expect(branch).toMatch(/^chore\/sync-upstream-\d{8}$/)
-      expect(worktree).toBe(join(box.dir, 'local-sync', branch.replaceAll('/', '-')))
+      // realpath: macOS tmpdir is a symlink, and git reports the resolved path.
+      expect(worktree).toBe(join(realpathSync(box.dir), 'local-sync', branch.replaceAll('/', '-')))
       const synced = gitOk(box, net.origin, 'rev-parse', 'feat/agent-hub-poc')
       expect(synced).toBe(gitOk(box, worktree, 'rev-parse', 'HEAD'))
       expect(gitOk(box, worktree, 'rev-parse', 'HEAD^1', 'HEAD^2').split('\n')).toEqual([

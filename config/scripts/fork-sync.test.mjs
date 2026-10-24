@@ -181,6 +181,7 @@ describe('fork sync against real git', () => {
     writeTree(repo, upstream)
     gitOk(box, repo, 'add', '-A')
     gitOk(box, repo, 'commit', '-q', '-m', 'upstream')
+    gitOk(box, repo, 'update-ref', 'refs/remotes/origin/main', 'main')
     gitOk(box, repo, 'switch', '-q', 'chore/sync-upstream-20261023')
     expect(runGit(box, repo, 'merge', '--no-ff', '--no-commit', 'main').status).not.toBe(0)
     return repo
@@ -279,6 +280,19 @@ describe('fork sync against real git', () => {
       process.exitCode = previous
     }
     expect(errors.join('\n')).toContain('  src/app.ts')
+  })
+
+  it('refuses to auto-resolve a merge in progress that is not upstream', () => {
+    const box = sandbox()
+    const repo = mergeInProgress(box, {
+      fork: { 'AGENTS.md': `# Upstream\n\n${BLOCK}` },
+      upstream: { 'AGENTS.md': '# Upstream v2\n' }
+    })
+    // origin/main stays behind the merged branch, as with a merge of the fork line.
+    gitOk(box, repo, 'update-ref', 'refs/remotes/origin/main', 'main~1')
+
+    expect(() => finishMerge(repo)).toThrow('not upstream')
+    expect(unmergedPaths(repo)).toEqual(['AGENTS.md'])
   })
 
   it('leaves an AGENTS.md that the fork deleted for a person', () => {

@@ -401,8 +401,21 @@ function assertSyncBranch(root) {
  * @returns {string[]} conflicts left for a person; empty once the merge is committed
  */
 export function finishMerge(worktree) {
+  const merging = mergeInProgress(worktree)
+  // Why: the automatic resolutions assume upstream is the side being merged in.
+  if (
+    merging &&
+    run('git', ['merge-base', '--is-ancestor', 'MERGE_HEAD', 'origin/main'], {
+      cwd: worktree,
+      allowFailure: true
+    }).status !== 0
+  ) {
+    throw new Error(
+      'The merge in progress is not upstream (a merge of the line?); resolve and commit it by hand, then run --continue.'
+    )
+  }
   const manual = resolveAutomatically(worktree, classifyConflicts(unmergedPaths(worktree)))
-  if (manual.length > 0 || !mergeInProgress(worktree)) {
+  if (manual.length > 0 || !merging) {
     return manual
   }
   // Why here too: a patch resolved by hand after the first run changes its hash.
