@@ -2,7 +2,6 @@ import { app, ipcMain, shell, type IpcMainInvokeEvent } from 'electron'
 import type { RuntimeAccessGrant } from '../../shared/runtime-access-grants'
 import type { MobilePairingConnectionMode } from '../../shared/mobile-pairing-connection-mode'
 import { classifyRemotePairingHostname } from '../../shared/remote-pairing-address'
-import { toVerifiedPairingLink } from '../../shared/pairing'
 import type { RuntimePairingReach } from '../../shared/runtime-pairing-reach'
 import type { DeviceEntry } from '../runtime/device-registry'
 import { NETWORK_EXPOSURE_FAILED_GUIDANCE } from '../runtime/network-exposure-guidance'
@@ -73,7 +72,10 @@ export function registerMobileHandlers(
   ipcMain.handle(
     'mobile:listNetworkInterfaces',
     async (): Promise<{ interfaces: NetworkInterface[] }> => ({
-      interfaces: await getPairingNetworkInterfaces(getDefaultRouteInterfaceNames)
+      interfaces: await getPairingNetworkInterfaces(
+        rpcServer.getNetworkExposureBindHost(),
+        getDefaultRouteInterfaceNames
+      )
     })
   )
 
@@ -90,7 +92,12 @@ export function registerMobileHandlers(
       // Why: allow the caller to specify which network interface address to
       // embed in the QR code. This supports overlay networks (Tailscale,
       // ZeroTier) where the default LAN IP isn't reachable from the phone.
-      const ip = args?.address ?? (await getDefaultPairingAddress(getDefaultRouteInterfaceNames))
+      const ip =
+        args?.address ??
+        (await getDefaultPairingAddress(
+          rpcServer.getNetworkExposureBindHost(),
+          getDefaultRouteInterfaceNames
+        ))
       // Why: the local address is optional under Relay — the QR carries the relay invite, so a host
       // with nothing auto-advertisable (only container bridges, or no interface at all) still pairs.
       // The offer's endpoint then falls back to loopback, which is the phone's own device: the direct
@@ -135,9 +142,7 @@ export function registerMobileHandlers(
         qrDataUrl: qr.ok ? qr.qrDataUrl : null,
         qrSize: qr.ok ? qr.qrSize : null,
         ...(!qr.ok ? { qrError: qr.reason } : {}),
-        // Why: the QR keeps the custom scheme older phones' scanners read, but a copied link can be
-        // tapped, and an `orca://` tap goes to whichever app claimed the scheme.
-        pairingUrl: toVerifiedPairingLink(offer.pairingUrl) ?? offer.pairingUrl,
+        pairingUrl: offer.pairingUrl,
         // Why: with nothing advertised the offer's endpoint is the loopback fallback, which points at
         // whichever device scans the QR — never this host. Report no endpoint so the UI omits it
         // instead of printing an address the phone can't reach.
@@ -151,7 +156,12 @@ export function registerMobileHandlers(
   ipcMain.handle(
     'mobile:getRuntimePairingUrl',
     async (_event, args?: { address?: string; rotate?: boolean; reach?: RuntimePairingReach }) => {
-      const ip = args?.address ?? (await getDefaultPairingAddress(getDefaultRouteInterfaceNames))
+      const ip =
+        args?.address ??
+        (await getDefaultPairingAddress(
+          rpcServer.getNetworkExposureBindHost(),
+          getDefaultRouteInterfaceNames
+        ))
       if (!ip) {
         return { available: false as const }
       }
@@ -256,13 +266,6 @@ export function registerMobileHandlers(
       return { revoked: false }
     }
     return { revoked: rpcServer.revokeRuntimeAccess(args.deviceId) }
-  })
-
-  ipcMain.handle('mobile:isWebSocketReady', () => {
-    return {
-      ready: rpcServer.getWebSocketEndpoint() !== null,
-      endpoint: rpcServer.getWebSocketEndpoint()
-    }
   })
 
   ipcMain.handle('mobile:getWindowsFirewallStatus', (_event, args?: { address?: string }) => {

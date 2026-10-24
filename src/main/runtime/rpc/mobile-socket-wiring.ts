@@ -1,6 +1,7 @@
 import { randomBytes } from 'node:crypto'
 import type { WebSocket } from 'ws'
 import type { DeviceEntry, DeviceRegistry } from '../device-registry'
+import { EPHEMERAL_DEVICE_SWEEP_INTERVAL_MS } from '../ephemeral-device-rows'
 import { devicePrincipalOf } from '../device-principal'
 import type { E2EEKeypair } from '../e2ee-keypair'
 import { E2EEChannel, type E2EEAuthenticatedDevice } from './e2ee-channel'
@@ -76,6 +77,7 @@ export class MobileSocketWiring {
   private readonly onClose: MobileSocketWiringOptions['onClose']
   private readonly onReady: MobileSocketWiringOptions['onReady']
   private readonly onUnpairedDeviceAuthFailure: MobileSocketWiringOptions['onUnpairedDeviceAuthFailure']
+  private readonly ephemeralSweep: ReturnType<typeof setInterval>
   private readonly channels = new Map<WebSocket, E2EEChannel>()
   private readonly connectionIds = new Map<WebSocket, string>()
   private readonly authenticatedSockets = new Map<WebSocket, AuthenticatedMobileSocket>()
@@ -90,6 +92,38 @@ export class MobileSocketWiring {
     this.onClose = options.onClose
     this.onReady = options.onReady
     this.onUnpairedDeviceAuthFailure = options.onUnpairedDeviceAuthFailure
+    this.ephemeralSweep = setInterval(
+      () => this.sweepIdleEphemeralDevices(Date.now()),
+      EPHEMERAL_DEVICE_SWEEP_INTERVAL_MS
+    )
+    // Why: bookkeeping must never hold the process open.
+    this.ephemeralSweep.unref?.()
+  }
+
+  dispose(): void {
+    clearInterval(this.ephemeralSweep)
+  }
+
+  /** Removes idle session-only browser rows and cuts any socket still bound to them. */
+  sweepIdleEphemeralDevices(now: number): string[] {
+    let removed: string[] = []
+    try {
+      removed = this.deviceRegistry.pruneIdleEphemeralDevices(now, (deviceId) =>
+        this.hasAuthenticatedSocket(deviceId)
+      )
+    } catch (error) {
+      console.error('[mobile] Failed to prune idle browser-session devices:', error)
+    }
+    for (const deviceId of removed) {
+      this.terminateDeviceConnections(deviceId)
+    }
+    return removed
+  }
+
+  private hasAuthenticatedSocket(deviceId: string): boolean {
+    return Array.from(this.authenticatedSockets.values()).some(
+      (socket) => socket.device.deviceId === deviceId
+    )
   }
 
   attachTransport(
@@ -251,6 +285,10 @@ export class MobileSocketWiring {
       Array.from(this.authenticatedSockets.values()).some(
         (candidate) => candidate.device.deviceId === socket.device.deviceId
       )
+    // Why: a session-only row idles from its last disconnect, not from when it connected.
+    if (socket && !hasOtherConnections && socket.device.deviceToken === undefined) {
+      this.deviceRegistry.updateLastSeenDeferred(socket.device.deviceId)
+    }
     this.onClose(socket, hasOtherConnections)
   }
 }

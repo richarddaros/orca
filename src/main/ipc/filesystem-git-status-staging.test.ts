@@ -18,7 +18,6 @@ import {
   discardChangesMock,
   checkIgnoredPathsMock,
   listWorktreesMock,
-  getSshGitProviderMock,
   resetFilesystemIpcMocks
 } from './filesystem-test-harness'
 
@@ -33,10 +32,6 @@ vi.mock(
   async () => (await import('./filesystem-test-harness')).crashBreadcrumbMock
 )
 vi.mock(
-  '../local-downloaded-folder-promotion',
-  async () => (await import('./filesystem-test-harness')).folderPromotionMock
-)
-vi.mock(
   '../git/status',
   async () => (await import('./filesystem-test-harness')).gitStatusModuleMock
 )
@@ -45,14 +40,6 @@ vi.mock(
   async () => (await import('./filesystem-test-harness')).gitIgnoredPathsMock
 )
 vi.mock('../git/worktree', async () => (await import('./filesystem-test-harness')).gitWorktreeMock)
-vi.mock(
-  '../providers/ssh-filesystem-dispatch',
-  async () => (await import('./filesystem-test-harness')).sshFilesystemDispatchMock
-)
-vi.mock(
-  '../providers/ssh-git-dispatch',
-  async () => (await import('./filesystem-test-harness')).sshGitDispatchMock
-)
 vi.mock(
   '../text-generation/commit-message-text-generation',
   async () => (await import('./filesystem-test-harness')).textGenerationModuleMock
@@ -80,8 +67,7 @@ import {
 describe('registerFilesystemHandlers', () => {
   beforeEach(() => {
     resetFilesystemIpcMocks()
-    // Reset module-level auth cache so each test starts with a fresh dirty
-    // flag — prevents stale worktree data from a prior test's cache rebuild.
+    // Drop cached roots between fixtures.
     invalidateAuthorizedRootsCache()
   })
 
@@ -95,14 +81,13 @@ describe('registerFilesystemHandlers', () => {
       filePath: './src/../src/file.ts'
     })
 
-    // Why: validateGitRelativeFilePath uses path.relative() which produces
-    // platform-specific separators (backslashes on Windows).
+    // Expected Git paths use the host's path.relative separators.
     expect(stageFileMock).toHaveBeenCalledWith(WORKTREE_FEATURE_PATH, path.join('src', 'file.ts'), {
       admissionTier: 'interactive'
     })
   })
 
-  it('uses worktree roots seeded by worktrees:list without rebuilding the cache', async () => {
+  it('uses worktree roots seeded by worktree listing without rebuilding the cache', async () => {
     registerWorktreeRootsForRepo(store as never, 'repo-1', [REPO_PATH, WORKTREE_FEATURE_PATH])
     getStatusMock.mockResolvedValue({ entries: [] })
 
@@ -338,7 +323,6 @@ describe('registerFilesystemHandlers', () => {
   })
 
   it('refuses SSH git IPC with the not-served error and never runs it locally', async () => {
-    getSshGitProviderMock.mockReturnValue({ getStatus: vi.fn(), abortMerge: vi.fn() })
     registerFilesystemHandlers(store as never)
 
     for (const channel of ['git:status', 'git:abortMerge', 'git:abortRebase']) {

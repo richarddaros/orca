@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { JiraIssue, JiraSite } from './jira-types'
+import type { JiraIssue, JiraSite } from './jira/jira-types'
 import { getMatchingJiraSites, isResolvedJiraIssueMatch, parseJiraIssueUrl } from './jira-issue-url'
 
 function site(id: string, siteUrl: string): JiraSite {
@@ -38,7 +38,7 @@ describe('parseJiraIssueUrl', () => {
       }
     ],
     [
-      ' HTTPS://JIRA.COMPANY.COM/jira/browse/Team9-7?foo=bar#details ',
+      ' HTTPS://JIRA.COMPANY.COM/jira/BROWSE/Team9-7?foo=bar#details ',
       {
         issueKey: 'TEAM9-7',
         origin: 'https://jira.company.com',

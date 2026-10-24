@@ -12,7 +12,6 @@ import {
   rememberGlabKnownHost,
   rememberGlabKnownHosts
 } from './gitlab-known-host-probe'
-import { registerSshGitProvider, unregisterSshGitProvider } from '../providers/ssh-git-dispatch'
 
 describe('getGlabKnownHosts', () => {
   // A locally-keyed probe must never answer from the default WSL distro.
@@ -228,7 +227,6 @@ describe('getGlabKnownHosts', () => {
       'gitlab.com',
       'gitlab.example.com:8080'
     ])
-    // A second probe for the same connection is served from cache.
     await expect(getGlabKnownHosts('conn-1')).resolves.toEqual([
       'gitlab.com',
       'gitlab.example.com:8080'
@@ -244,9 +242,8 @@ describe('getGlabKnownHosts', () => {
         stderr: ''
       })
 
-    // First probe fails → canonical default, NOT cached.
+    // Failed probes leave defaults uncached so recovery can discover the actual host.
     await expect(getGlabKnownHosts('conn-1')).resolves.toEqual(['gitlab.com'])
-    // Re-probe (e.g. after tunnel comes up) discovers the real host.
     await expect(getGlabKnownHosts('conn-1')).resolves.toEqual([
       'gitlab.com',
       'gitlab.example.com:8080'
@@ -279,25 +276,5 @@ describe('getGlabKnownHosts', () => {
       'recovered.test'
     ])
     expect(glabExecFileAsyncMock).toHaveBeenCalledTimes(2)
-  })
-
-  it('does not reuse a successful result after an SSH provider reconnects', async () => {
-    const connectionId = 'conn-reconnected'
-    registerSshGitProvider(connectionId, {} as never)
-    glabExecFileAsyncMock
-      .mockResolvedValueOnce({ stdout: 'Logged in to old-tunnel.test as user\n', stderr: '' })
-      .mockResolvedValueOnce({ stdout: 'Logged in to new-tunnel.test as user\n', stderr: '' })
-
-    await expect(getGlabKnownHosts(connectionId)).resolves.toEqual([
-      'gitlab.com',
-      'old-tunnel.test'
-    ])
-    registerSshGitProvider(connectionId, {} as never)
-    await expect(getGlabKnownHosts(connectionId)).resolves.toEqual([
-      'gitlab.com',
-      'new-tunnel.test'
-    ])
-    expect(glabExecFileAsyncMock).toHaveBeenCalledTimes(2)
-    unregisterSshGitProvider(connectionId)
   })
 })

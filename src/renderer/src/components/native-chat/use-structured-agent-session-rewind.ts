@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import type { AgentSessionRewindResult } from '../../../../shared/agent-session-rewind'
-import type { RuntimeClientTarget } from '@/runtime/runtime-client-target'
+import type { RuntimeClientTarget } from '../../../../shared/runtime-client-target'
 import { useStructuredAgentSessionHostRecoversRewindOnSend } from '@/runtime/structured-agent-session-host-capability'
 import type { StructuredAgentSessionWrite } from './use-structured-agent-session-mutate'
 import {
@@ -16,6 +16,7 @@ export function useStructuredAgentSessionRewind(
 ) {
   const {
     blocked,
+    capturePresentation,
     composerScopeKey,
     contextFloor,
     hostBlockedReason,
@@ -34,6 +35,7 @@ export function useStructuredAgentSessionRewind(
   const input = useMemo<RewindInput>(
     () => ({
       sessionId,
+      capturePresentation,
       composerScopeKey,
       contextFloor,
       onMessageReturned,
@@ -47,6 +49,7 @@ export function useStructuredAgentSessionRewind(
     }),
     [
       blocked,
+      capturePresentation,
       composerScopeKey,
       contextFloor,
       hostBlockedReason,

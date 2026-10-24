@@ -1,4 +1,5 @@
 import { LOCAL_EXECUTION_HOST_ID } from '../../../../shared/execution-host'
+import { afterPendingEntityTabs } from '@/runtime/layout-owner-pending-tabs'
 import { toast } from 'sonner'
 import { getConnectionIdForFile } from '@/lib/connection-context'
 import { detectLanguage } from '@/lib/language-detect'
@@ -7,7 +8,7 @@ import { getLinkSourceLocalOpenOwner } from '@/lib/link-source-local-open-owner'
 import { openHttpLink } from '@/lib/http-link-routing'
 import { translate } from '@/i18n/i18n'
 import { requireRuntimeTargetForFileOwner } from '@/lib/file-owner-runtime-target'
-import { statRuntimePath } from '@/runtime/runtime-file-client'
+import { statRuntimePath } from '@/runtime/runtime-file-metadata-client'
 import { useAppStore } from '@/store'
 import { relativePathInsideRoot } from '../../../../shared/cross-platform-path'
 import { resolveMarkdownLinkTarget } from './markdown-internal-links'
@@ -221,17 +222,20 @@ export async function handleMarkdownPreviewLinkClick({
     }
     cancelMarkdownPreviewEditorRevealFrames(pendingEditorRevealFrameIdsRef)
     setPendingEditorReveal(null)
-    requestMarkdownPreviewEditorRevealFrame(pendingEditorRevealFrameIdsRef, () => {
+    // Why after: a layout-owner build draws a new tab only with main's frame.
+    afterPendingEntityTabs(targetWorktree.id, targetFileId, () =>
       requestMarkdownPreviewEditorRevealFrame(pendingEditorRevealFrameIdsRef, () => {
-        setPendingEditorReveal({
-          filePath: absolutePath,
-          fileId: targetFileId,
-          line: lineTarget.line,
-          column: lineTarget.column ?? 1,
-          matchLength: 0
+        requestMarkdownPreviewEditorRevealFrame(pendingEditorRevealFrameIdsRef, () => {
+          setPendingEditorReveal({
+            filePath: absolutePath,
+            fileId: targetFileId,
+            line: lineTarget.line,
+            column: lineTarget.column ?? 1,
+            matchLength: 0
+          })
         })
       })
-    })
+    )
     return
   }
 

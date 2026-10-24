@@ -14,9 +14,10 @@ import {
 import {
   getRemoteRuntimePtyEnvironmentId,
   getRemoteRuntimeTerminalHandle,
-  subscribeToRuntimeTerminalData,
-  toRemoteRuntimePtyId
+  subscribeToRuntimeTerminalData
 } from './runtime-terminal-stream'
+import { toRemoteRuntimePtyId } from '../../../shared/remote-runtime-pty-id'
+import { stubRuntimeEnvironmentBridge } from './runtime-environment-bridge-fixture'
 
 describe('remote runtime terminal ids', () => {
   it('encodes and decodes the owning runtime environment', () => {
@@ -65,13 +66,7 @@ describe('remote runtime terminal data subscriptions', () => {
       )
       return { unsubscribe, sendBinary }
     })
-    vi.stubGlobal('window', {
-      api: {
-        runtimeEnvironments: {
-          subscribe: runtimeSubscribe
-        }
-      }
-    })
+    stubRuntimeEnvironmentBridge({ subscribe: runtimeSubscribe })
   })
 
   afterEach(() => {
@@ -115,7 +110,9 @@ describe('remote runtime terminal data subscriptions', () => {
       ackOutputSourceRanges: 1,
       desktopViewportClaims: 1,
       outputPause: 1,
-      writeUnavailable: 1
+      outputPauseDropNotice: 1,
+      writeUnavailable: 1,
+      endpointLossNotice: 1
     })
 
     callbacks?.onBinary?.(

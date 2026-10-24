@@ -9,7 +9,8 @@ import { getRepoExecutionHostId, parseExecutionHostId } from '../../../../shared
 import type { ExecutionHostId } from '../../../../shared/execution-host'
 import type { Repo } from '../../../../shared/repo-types'
 import { isFolderRepo } from '../../../../shared/repo-kind'
-import { getLocalPtyProvider, clearProviderPtyState } from '../../pty'
+import { getLocalPtyProvider } from '../../pty/provider/registry'
+import { clearProviderPtyState } from '../../pty/provider/state-cleanup'
 import { killAllProcessesForWorktree } from '../../../runtime/worktree-teardown'
 import { invalidateAuthorizedRootsCache } from '../../registered-worktree-roots-cache'
 import { preservedBranchCleanupScopeKey } from '../../../../shared/preserved-branch-cleanup'
@@ -34,6 +35,12 @@ import {
   preservedBranchCleanupByScope
 } from './preserved-branch-cleanup'
 import type { WorktreeIpcContext } from '../worktree-ipc-context'
+import {
+  assertWslMoveProjectWritable,
+  assertWslMoveRepoWritable,
+  isWslMoveSourceHost
+} from '../../../persistence/moving-wsl-projects/wsl-move-scope-guard'
+import { teardownStops } from '../../../runtime/owned-session-teardown-policy'
 
 export function registerWorktreeForgetHandlers(context: WorktreeIpcContext): void {
   const { mainWindow, store, runtime, worktreeRemovalsInFlight } = context
@@ -52,6 +59,11 @@ export function registerWorktreeForgetHandlers(context: WorktreeIpcContext): voi
         )
       }
       const repo = repoOwner.kind === 'resolved' ? repoOwner.repo : undefined
+      if (repo) {
+        assertWslMoveRepoWritable(store, repo)
+      } else if (isWslMoveSourceHost(args.hostId)) {
+        assertWslMoveProjectWritable(store, { repoId })
+      }
       // Repo-first (unlike owner resolution below) so this key matches worktrees:remove's; meta only covers ownerless forgets.
       const inFlightKey = getWorktreeRemovalInFlightKey(
         args.worktreeId,
@@ -102,7 +114,7 @@ export function registerWorktreeForgetHandlers(context: WorktreeIpcContext): voi
           onPtyStopped: clearProviderPtyState,
           // Forgetting an orphan still purges its workspace metadata, so retire structured chat
           // tabs even when no provider child is attached to the workspace.
-          closeStructuredSessions: true,
+          closeStructuredSessions: teardownStops('worktree-removal', 'structured-chat'),
           ...(externalHost ? { includeProviderInventory: false, includeLocalRegistry: false } : {})
         }).catch((err) => {
           console.warn(`[worktree-teardown] forget-local failed for ${args.worktreeId}:`, err)
@@ -111,7 +123,7 @@ export function registerWorktreeForgetHandlers(context: WorktreeIpcContext): voi
         runtime.clearOptimisticReconcileToken(args.worktreeId)
         // The resolved owner, not args.hostId: an orphan forget with no hostId still has to purge its SSH/runtime partition.
         removeWorktreeMetadataAndTransientState(
-          store,
+          { store, runtime },
           args.worktreeId,
           ownerHost?.id,
           args.snapshotPruneBatchId
@@ -165,6 +177,7 @@ export function registerWorktreeForgetHandlers(context: WorktreeIpcContext): voi
       if (!repo) {
         throw new Error(`Repo not found: ${repoId}`)
       }
+      assertWslMoveRepoWritable(store, repo)
       if (isFolderRepo(repo)) {
         throw new Error('Folder workspaces do not have local Git branches.')
       }

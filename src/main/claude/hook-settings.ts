@@ -14,6 +14,7 @@ import {
   type HooksConfig
 } from '../agent-hooks/installer-utils'
 import { quotePowerShellLiteral } from '../../shared/powershell-native-argument'
+import { getWindowsNativeHookAgent } from '../agent-hooks/windows-native-hook-executable'
 import {
   wrapRuntimeHomeHookCommand,
   wrapRuntimeHomePosixHookCommand
@@ -102,10 +103,11 @@ export function getManagedCommand(
 export function getManagedEventHook(
   eventName: string,
   scriptPath: string,
-  settings = CLAUDE_HOOK_SETTINGS
+  settings = CLAUDE_HOOK_SETTINGS,
+  nativeHookPath: string | null = null
 ): HookCommandConfig {
   return process.platform === 'win32'
-    ? getManagedLifecycleHook(scriptPath, settings)
+    ? getManagedLifecycleHook(scriptPath, settings, nativeHookPath)
     : buildManagedCommandHook(getRemoteManagedEventCommand(eventName, scriptPath))
 }
 
@@ -118,10 +120,21 @@ export function getRemoteManagedEventCommand(eventName: string, scriptPath: stri
 
 export function getManagedLifecycleHook(
   scriptPath: string,
-  settings = CLAUDE_HOOK_SETTINGS
+  settings = CLAUDE_HOOK_SETTINGS,
+  nativeHookPath: string | null = null
 ): HookCommandConfig {
   if (process.platform !== 'win32' || !settings.usesWindowsCompatLauncher) {
     return buildManagedCommandHook(getManagedCommand(scriptPath, { neutralJsonWhenMissing: true }))
+  }
+  // Native exe plus agent name launches consistently across Git Bash, PowerShell and CreateProcess.
+  const nativeCommand = nativeHookPath ? wrapWindowsDirectCmdHookCommand(nativeHookPath) : null
+  if (nativeCommand) {
+    const agent = getWindowsNativeHookAgent(scriptPath)
+    return {
+      type: 'command',
+      command: `${nativeCommand} ${agent}`,
+      timeout: MANAGED_HOOK_TIMEOUT_SECONDS
+    }
   }
   if (settings.windowsHookShell === 'powershell') {
     return {
@@ -170,6 +183,31 @@ export function hasSameManagedHookInvocation(
   )
 }
 
+/** Report the first matching invocation form per event, or list the event as missing. */
+export function findManagedEventHookForms(
+  config: HooksConfig,
+  eventNames: string[],
+  formsFor: (eventName: string) => HookCommandConfig[]
+): { missing: string[]; matchedForms: number[] } {
+  const missing: string[] = []
+  const matchedForms: number[] = []
+  for (const eventName of eventNames) {
+    const definitions = config.hooks?.[eventName]
+    const hooks = Array.isArray(definitions)
+      ? definitions.flatMap((definition) => definition.hooks ?? [])
+      : []
+    const form = formsFor(eventName).findIndex((expected) =>
+      hooks.some((hook) => hasSameManagedHookInvocation(hook, expected))
+    )
+    if (form === -1) {
+      missing.push(eventName)
+    } else {
+      matchedForms.push(form)
+    }
+  }
+  return { missing, matchedForms }
+}
+
 export function getRemoteManagedCommand(scriptPath: string): string {
   return getManagedCommand(scriptPath, { neutralJsonWhenMissing: true })
 }
@@ -211,8 +249,7 @@ export function applyManagedHooks(
 
 export type StatusLineSlotState = 'managed' | 'user' | 'empty'
 
-// Why: install policy needs "user owns the slot" vs "slot is empty" vs "ours" — an empty slot
-// after a prior install means the user deleted the managed entry, which install must respect.
+// An empty slot after a prior install is a user opt-out, distinct from a fresh empty slot.
 export function getStatusLineSlotState(
   config: HooksConfig,
   scriptFileName = getStatusLineScriptFileName()
@@ -227,13 +264,11 @@ export function getStatusLineSlotState(
   return isManagedCommand(currentCommand) ? 'managed' : 'user'
 }
 
-// Why: records that the managed statusline was installed once, so a later empty slot reads as user opt-out.
 export function getStatusLineInstallMarkerPath(settings = CLAUDE_HOOK_SETTINGS): string {
   return getSharedManagedScriptPath(`${getStatusLineScriptBaseName(settings)}.installed`)
 }
 
-// Why: statusLine is a single settings slot, not a hooks array — never overwrite a
-// user-owned status line; the usage feed then simply falls back to the OAuth poll.
+// A user-owned status line takes precedence over Orca's usage feed.
 export function applyManagedStatusLine(
   config: HooksConfig,
   command: string,

@@ -1,5 +1,6 @@
-import { extractVerifiedPairingLinkCode } from '../../../src/shared/verified-pairing-link'
 import { PairingOfferSchema, type PairingOffer } from './types'
+import { normalizePairingBase64 } from '../../../src/shared/mobile-pairing-base64'
+import { PAIRING_INPUT_MAX_CHARACTERS } from '../../../src/shared/mobile-pairing-protocol-limits'
 
 // Why: this file mirrors src/shared/pairing.ts (which is covered by CI
 // vitest) but uses atob/btoa because Metro/Hermes don't ship Node's
@@ -18,13 +19,12 @@ export function decodePairingUrl(url: string): PairingOffer | null {
   }
 }
 
-// Why: in-app QR scan and paste never pass through the OS link dispatcher, so
-// they keep accepting the custom scheme that old desktops emit. OS-delivered
-// links go through incoming-pairing-link.ts, which refuses custom-scheme codes.
+// Why: system camera apps hand us the raw custom-scheme URL. Keeping
+// extraction here makes QR scan, paste, and external deep-link flows
+// accept the same URL shapes.
 export function extractPairingCodeFromUrl(url: string): string | null {
-  const verifiedCode = extractVerifiedPairingLinkCode(url)
-  if (verifiedCode) {
-    return verifiedCode
+  if (url.length > PAIRING_INPUT_MAX_CHARACTERS) {
+    return null
   }
   const trimmed = url.trim()
   const match = /^orca:\/\/([^/?#]*)([^?#]*)?/i.exec(trimmed)
@@ -54,16 +54,19 @@ export function extractPairingCodeFromUrl(url: string): string | null {
   return null
 }
 
-// Why: accept an `orca://pair?...` URL, a verified https link, or the bare
-// base64 string so the paste-pair flow can take whichever the user actually
+// Why: accept either an `orca://pair?...` URL or the bare base64
+// string so the paste-pair flow can take whichever the user actually
 // copied from desktop.
 export function parsePairingCode(input: string): PairingOffer | null {
+  if (input.length > PAIRING_INPUT_MAX_CHARACTERS) {
+    return null
+  }
   const trimmed = input.trim()
   if (!trimmed) {
     return null
   }
   try {
-    if (/^(?:orca|https):\/\//i.test(trimmed)) {
+    if (/^orca:\/\//i.test(trimmed)) {
       return decodePairingUrl(trimmed)
     }
     return decodePairingBase64(trimmed)
@@ -75,15 +78,6 @@ export function parsePairingCode(input: string): PairingOffer | null {
 function decodePairingBase64(base64url: string): PairingOffer {
   // Why: desktop intentionally strips base64 padding from QR payloads. Some
   // mobile JS runtimes reject unpadded atob input, so restore it before decode.
-  const base64 = padBase64(base64url.replace(/-/g, '+').replace(/_/g, '/'))
-  const json = atob(base64)
+  const json = atob(normalizePairingBase64(base64url))
   return PairingOfferSchema.parse(JSON.parse(json))
-}
-
-function padBase64(base64: string): string {
-  const remainder = base64.length % 4
-  if (remainder === 0) {
-    return base64
-  }
-  return `${base64}${'='.repeat(4 - remainder)}`
 }

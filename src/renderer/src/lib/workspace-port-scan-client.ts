@@ -1,9 +1,6 @@
-import {
-  callRuntimeRpc,
-  runtimeEnvironmentSupportsCapability,
-  RuntimeRpcCallError,
-  type RuntimeClientTarget
-} from '@/runtime/runtime-rpc-client'
+import { callRuntimeRpc, runtimeEnvironmentSupportsCapability } from '@/runtime/runtime-rpc-client'
+import { RuntimeRpcCallError } from '@/runtime/runtime-rpc-result'
+import type { RuntimeClientTarget } from '../../../shared/runtime-client-target'
 import { callHostRoute } from '@/runtime/host-route-call'
 import type { HostRoute } from '@/runtime/runtime-client-target'
 import { toRuntimeWorktreeSelector } from '@/runtime/runtime-worktree-selector'
@@ -11,6 +8,8 @@ import type {
   WorkspacePort,
   WorkspacePortHostScanResult,
   WorkspacePortKillResult,
+  WorkspacePortPageProbeRequest,
+  WorkspacePortPageProbeResult,
   WorkspacePortScanResult
 } from '../../../shared/workspace-ports'
 import { normalizeExecutionHostId } from '../../../shared/execution-host'
@@ -212,6 +211,32 @@ export async function killWorkspacePortOnExecutionHost(
   } catch (error) {
     if (isMethodNotFound(error)) {
       return { ok: false, reason: WORKSPACE_PORTS_SERVER_SSH_UPDATE_REASON }
+    }
+    throw error
+  }
+}
+
+/**
+ * Whether a scanned port serves a web page, asked of the host the port is on. `null` when that
+ * host's Orca predates the probe, so callers fall back to what the scan alone knows.
+ */
+export async function probeWorkspacePortPageForTarget(
+  target: RuntimeClientTarget,
+  request: WorkspacePortPageProbeRequest
+): Promise<WorkspacePortPageProbeResult | null> {
+  if (target.kind === 'local') {
+    return window.api.workspacePorts.probePage(request)
+  }
+  try {
+    return await callRuntimeRpc<WorkspacePortPageProbeResult>(
+      target,
+      'workspacePorts.probePage',
+      request,
+      { timeoutMs: WORKSPACE_PORT_RPC_TIMEOUT_MS }
+    )
+  } catch (error) {
+    if (isMethodNotFound(error)) {
+      return null
     }
     throw error
   }

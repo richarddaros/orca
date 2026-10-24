@@ -1,4 +1,4 @@
-import type { JiraIssue, JiraSite } from './jira-types'
+import type { JiraIssue, JiraSite } from './jira/jira-types'
 
 export type ParsedJiraIssueUrl = {
   issueKey: string
@@ -22,7 +22,7 @@ export function parseJiraIssueUrl(value: string): ParsedJiraIssueUrl | null {
   ) {
     return null
   }
-  const match = url.pathname.match(/^(.*)\/browse\/([^/]+)$/)
+  const match = url.pathname.match(/^(.*)\/browse\/([^/]+)$/i)
   if (!match || !JIRA_ISSUE_KEY_PATTERN.test(match[2])) {
     return null
   }

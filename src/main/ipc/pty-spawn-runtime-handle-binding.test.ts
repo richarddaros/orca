@@ -11,7 +11,7 @@ import {
   makePaneSpawnReservationKey,
   reservePaneSpawn
 } from './pty/pane/spawn-reservation'
-import { registerPtyHandlers } from './pty'
+import { registerPtyHandlers } from './pty/register-handlers'
 
 vi.mock('electron', () => import('./pty-ipc-mock-registry').then((m) => m.electronModuleMock()))
 vi.mock('fs', () => import('./pty-ipc-mock-registry').then((m) => m.fsModuleMock()))
@@ -408,7 +408,9 @@ describe('registerPtyHandlers', () => {
       'term_expected'
     )
     expect(mainWindow.webContents.send).toHaveBeenCalledWith('pty:spawned', {
-      id: spawned.id
+      id: spawned.id,
+      incarnationId: expect.any(String),
+      hostId: 'local'
     })
   })
   it('releases the Agent Teams leader of a spawn that loses the pane mid-preflight', async () => {

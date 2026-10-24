@@ -25,7 +25,7 @@ vi.mock('@/store', () => ({ useAppStore: { getState: () => mocks.state } }))
 vi.mock('@/lib/worktree-activation', () => ({
   activateAndRevealWorktree: mocks.activateAndRevealWorktree
 }))
-vi.mock('@/runtime/web-runtime-session', () => ({
+vi.mock('@/runtime/web-runtime-session-tab-lifecycle', () => ({
   activateWebRuntimeSessionTab: mocks.activateWebRuntimeSessionTab
 }))
 vi.mock('@/lib/terminal-tab-owner-activation', () => ({
@@ -95,13 +95,13 @@ function storeState(mirrored: boolean): Record<string, unknown> {
   }
 }
 
-function openRun(): void {
+function openRun(target: AutomationRun = run): void {
   // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: the action reads only these members.
   const context = {
     store: { repoForRow: () => undefined, worktreeForRow: () => worktree },
     list: { selectedRow: { key: 'row' } }
   } as unknown as AutomationsPageActionContext
-  createAutomationRunWorkspaceAction(context)(run)
+  createAutomationRunWorkspaceAction(context)(target)
 }
 
 describe('opening a paired-server automation run', () => {
@@ -141,5 +141,18 @@ describe('opening a paired-server automation run', () => {
     await vi.waitFor(() =>
       expect(mocks.toastError).toHaveBeenCalledWith('Run terminal is unavailable.')
     )
+  })
+
+  it('asks the server to open a run whose pane it slept, PTY id dropped', async () => {
+    mocks.state = storeState(false)
+
+    openRun({ ...run, terminalPtyId: null })
+    await vi.waitFor(() => expect(mocks.activateWebRuntimeSessionTab).toHaveBeenCalled())
+
+    expect(mocks.activateAndRevealWorktree).toHaveBeenCalledWith(WT)
+    expect(mocks.activateWebRuntimeSessionTab).toHaveBeenCalledWith(
+      expect.objectContaining({ worktreeId: WT, tabId: HOST_TAB, environmentId: ENV, leafId: LEAF })
+    )
+    expect(mocks.toastMessage).not.toHaveBeenCalled()
   })
 })

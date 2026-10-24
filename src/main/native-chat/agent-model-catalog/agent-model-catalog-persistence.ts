@@ -61,15 +61,21 @@ function parseModel(value: unknown): AgentSessionModelOption | null {
     : undefined
   const description = text(row.description)
   const defaultEffort = text(row.defaultEffort)
+  const resolvedModel = text(row.resolvedModel)
   return {
     id,
     label,
+    ...(resolvedModel ? { resolvedModel } : {}),
+    ...(row.effortsKnown === false ? { effortsKnown: false as const } : {}),
     ...(description ? { description } : {}),
     isDefault: row.isDefault === true,
     ...(defaultEffort ? { defaultEffort } : {}),
     efforts: efforts.filter((effort): effort is AgentSessionOptionChoice => effort !== null),
     ...(typeof row.supportsFastMode === 'boolean'
       ? { supportsFastMode: row.supportsFastMode }
+      : {}),
+    ...(typeof row.supportsAutoMode === 'boolean'
+      ? { supportsAutoMode: row.supportsAutoMode }
       : {}),
     ...(serviceTiers ? { serviceTiers } : {})
   }
@@ -104,7 +110,8 @@ function parseListing(value: unknown): AgentModelCatalogListing | null {
         }
       : {}),
     origin: row.origin,
-    at: row.at
+    at: row.at,
+    ...(row.complete === true ? { complete: true } : {})
   }
 }
 
@@ -114,6 +121,10 @@ function parseEntry(value: unknown): AgentModelCatalogEntry | null {
   const row = asRecord(value)
   if (!row || !isStructuredAgentId(row.agent) || typeof row.fingerprint !== 'string') {
     return null
+  }
+  if (row.agent === 'claude' || row.agent === 'codex') {
+    const display = parseListing(row.discovered) ?? parseListing(row.live)
+    return agentModelCatalogEntry(row.agent, row.fingerprint, display, null, null)
   }
   const configured = asRecord(row.configured)
   const configuredModelId = text(configured?.modelId)

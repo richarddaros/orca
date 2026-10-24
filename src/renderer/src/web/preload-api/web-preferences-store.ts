@@ -1,5 +1,4 @@
 import type { PreloadApi } from '../../../../preload/api-types'
-import { normalizeAutoRenameBranchFromWorkDefaultOn } from '../../../../shared/auto-rename-branch-from-work-settings'
 import {
   getDefaultSettings,
   getDefaultUIState,
@@ -7,20 +6,19 @@ import {
 } from '../../../../shared/constants'
 import { normalizeWorktreeVisibilityDefaults } from '../../../../shared/external-worktree-visibility'
 import type { GlobalSettings } from '../../../../shared/global-settings-types'
-import {
-  normalizeOsc52ClipboardDefaultOn,
-  osc52ClipboardDefaultOnOverridesPersistedOff
-} from '../../../../shared/osc52-clipboard-settings'
+import { osc52ClipboardDefaultOnOverridesPersistedOff } from '../../../../shared/osc52-clipboard-settings'
 import type { PersistedUIState } from '../../../../shared/persisted-ui-state-types'
 import {
   applyPRBotAuthorOverride,
   normalizePRBotAuthorOverrides
 } from '../../../../shared/pr-bot-author-overrides'
-import { normalizeTerminalCursorStyleDefault } from '../../../../shared/terminal-cursor-style-settings'
-import { normalizeTerminalCustomThemes } from '../../../../shared/terminal-custom-themes'
-import { normalizeUiLanguage } from '../../../../shared/ui-language'
 import { readStoredWebRuntimeEnvironment } from '../web-runtime-environment'
-import { mergeSettings, mergeWebUIState } from './web-preference-normalization'
+import {
+  mergeSettings,
+  mergeWebUIState,
+  migrateStoredWebSettings,
+  runtimeChatPermissionSetting
+} from './web-preference-normalization'
 import { callRuntimeResult } from './web-runtime-calls'
 import { requireActiveEnvironmentOrNull, webRuntimeState } from './web-runtime-session'
 import { zcodePlanSiteOwner, settingsForZcodePlanSiteOwner } from './web-zcode-plan-site'
@@ -29,19 +27,11 @@ import { SETTINGS_STORAGE_KEY, UI_STORAGE_KEY, readJson, writeJson } from './web
 export type WebSettingsApi = NonNullable<PreloadApi['settings']>
 
 export function getStoredSettings(): GlobalSettings {
-  webRuntimeState.activeEnvironment =
-    webRuntimeState.activeEnvironment ?? readStoredWebRuntimeEnvironment()
+  webRuntimeState.activeEnvironment ??= readStoredWebRuntimeEnvironment()
   const defaults = getDefaultSettings('~')
   const rawStoredSettings = window.localStorage.getItem(SETTINGS_STORAGE_KEY)
   const stored = readJson<Partial<GlobalSettings>>(SETTINGS_STORAGE_KEY, {})
-  const migratedStored = {
-    ...stored,
-    ...normalizeAutoRenameBranchFromWorkDefaultOn(stored),
-    ...normalizeTerminalCursorStyleDefault(stored),
-    ...normalizeOsc52ClipboardDefaultOn(stored),
-    terminalCustomThemes: normalizeTerminalCustomThemes(stored.terminalCustomThemes),
-    uiLanguage: normalizeUiLanguage(stored.uiLanguage)
-  }
+  const migratedStored = migrateStoredWebSettings(stored)
   if (
     rawStoredSettings &&
     (stored.autoRenameBranchFromWork !== migratedStored.autoRenameBranchFromWork ||
@@ -56,7 +46,8 @@ export function getStoredSettings(): GlobalSettings {
       stored.terminalAllowOsc52ClipboardDefaultedOnForAllUsers !==
         migratedStored.terminalAllowOsc52ClipboardDefaultedOnForAllUsers ||
       stored.terminalCustomThemes !== migratedStored.terminalCustomThemes ||
-      stored.uiLanguage !== migratedStored.uiLanguage)
+      stored.uiLanguage !== migratedStored.uiLanguage ||
+      stored.uiLanguagePortugueseMigrationApplied !== true)
   ) {
     try {
       const parsed = JSON.parse(rawStoredSettings) as unknown
@@ -160,6 +151,7 @@ export async function getRuntimeBackedStoredSettings(): Promise<GlobalSettings> 
         result.settings.prBotAuthorOverrides
       )
     }
+    Object.assign(runtimeSettings, runtimeChatPermissionSetting(result.settings))
     // Read-only mirror: the host owns this capability and `syncRuntimeBackedSettings` never
     // sends it back, so web shows what the host enforces instead of a local value it ignores.
     if (typeof result.settings.artifactSharingEnabled === 'boolean') {
@@ -229,6 +221,7 @@ export async function syncRuntimeBackedSettings(
       updates.prBotAuthorOverrides
     )
   }
+  Object.assign(runtimeUpdates, runtimeChatPermissionSetting(updates, false))
   if (Object.keys(runtimeUpdates).length === 0) {
     return localNext
   }

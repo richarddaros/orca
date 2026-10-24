@@ -23,7 +23,7 @@ env:
 jobs:
   linux-x11:
     name: Linux X11 terminal IME
-    runs-on: ubuntu-22.04
+    runs-on: blacksmith-4vcpu-ubuntu-2204
     timeout-minutes: 25
 
     steps:
@@ -82,7 +82,7 @@ jobs:
 
   linux-wayland:
     name: Linux Wayland Hangul terminating digit
-    runs-on: ubuntu-22.04
+    runs-on: blacksmith-4vcpu-ubuntu-2204
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v6
@@ -101,7 +101,7 @@ jobs:
         env:
           VITE_EXPOSE_STORE: 'true'
         run: |
-          pnpm run build:relay
+          pnpm run build:wsl-guest
           pnpm exec electron-vite build --mode e2e
           pnpm run build:web-from-renderer
       - name: Run native Wayland Hangul terminating digit

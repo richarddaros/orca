@@ -3,16 +3,13 @@ import { View, Text, StyleSheet, Pressable, ActivityIndicator, BackHandler } fro
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router'
 import { ChevronLeft } from 'lucide-react-native'
-import {
-  describePairingHost,
-  resolvePairConfirmRouteState
-} from '../src/transport/pair-confirm-state'
+import { resolvePairConfirmRouteState } from '../src/transport/pair-confirm-state'
 import {
   startPreProfilePairing,
   type PreProfilePairingAttempt
 } from '../src/transport/pre-profile-pairing-coordinator'
 import type { ConnectionLogEntry } from '../src/transport/types'
-import { useRefreshHostClient } from '../src/transport/client-context'
+import { useRefreshHostClient } from '../src/transport/host-client-hooks'
 import { colors, spacing, radii, typography } from '../src/theme/mobile-theme'
 import { ConnectionLog } from '../src/components/ConnectionLog'
 import {
@@ -46,7 +43,6 @@ export default function PairConfirmScreen() {
 
   const routeState = resolvePairConfirmRouteState(params.code)
   const offer = routeState.offer
-  const host = offer ? describePairingHost(offer) : null
   const resolvedStatus =
     status === 'awaiting-confirm' && routeState.kind === 'error' ? 'error' : status
   const resolvedErrorMessage =
@@ -147,7 +143,13 @@ export default function PairConfirmScreen() {
 
   return (
     <View ref={setPairConfirmRootRef} style={[styles.container, containerPadding]}>
-      <Pressable style={styles.backButton} onPress={cancel}>
+      <Pressable
+        style={styles.backButton}
+        onPress={cancel}
+        hitSlop={8}
+        accessibilityRole="button"
+        accessibilityLabel="Back"
+      >
         <ChevronLeft size={22} color={colors.textSecondary} />
       </Pressable>
 
@@ -156,24 +158,8 @@ export default function PairConfirmScreen() {
           <>
             <Text style={styles.title}>Pair with this desktop?</Text>
             <Text style={styles.subtitle}>
-              Check that this address matches the one under the QR code in Orca on your computer.
+              You opened a pairing link from your desktop. Confirm to add it to your hosts.
             </Text>
-            {host && (
-              <View style={styles.hostDetails}>
-                <Text style={styles.detailLabel}>Address</Text>
-                <Text style={styles.detailValue} selectable>
-                  {host.endpoint}
-                </Text>
-                {host.keyFingerprint && (
-                  <>
-                    <Text style={styles.detailLabel}>Host key</Text>
-                    <Text style={styles.detailValue} selectable>
-                      {host.keyFingerprint}
-                    </Text>
-                  </>
-                )}
-              </View>
-            )}
             <View style={styles.actionStack}>
               <Pressable style={styles.primaryButton} onPress={() => void confirm()}>
                 <Text style={styles.primaryButtonText}>Pair</Text>
@@ -253,27 +239,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     maxWidth: 520,
     alignSelf: 'center'
-  },
-  hostDetails: {
-    width: '100%',
-    maxWidth: 360,
-    alignSelf: 'center',
-    backgroundColor: colors.bgRaised,
-    borderColor: colors.borderSubtle,
-    borderWidth: 1,
-    borderRadius: radii.card,
-    padding: spacing.md,
-    marginBottom: spacing.xl
-  },
-  detailLabel: {
-    color: colors.textSecondary,
-    fontSize: typography.metaSize
-  },
-  detailValue: {
-    color: colors.textPrimary,
-    fontFamily: typography.monoFamily,
-    fontSize: typography.bodySize,
-    marginBottom: spacing.sm
   },
   actionStack: {
     width: '100%',

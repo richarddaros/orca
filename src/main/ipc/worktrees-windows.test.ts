@@ -18,7 +18,6 @@ const {
   getEffectiveHooksMock,
   getEffectiveHooksFromConfigMock,
   getDefaultTabsLaunchMock,
-  createIssueCommandRunnerScriptMock,
   createSetupRunnerScriptMock,
   resolveSetupRunnerShellMock,
   shouldRunSetupForCreateMock,
@@ -48,7 +47,6 @@ const {
   getEffectiveHooksMock: vi.fn(),
   getEffectiveHooksFromConfigMock: vi.fn(),
   getDefaultTabsLaunchMock: vi.fn(),
-  createIssueCommandRunnerScriptMock: vi.fn(),
   createSetupRunnerScriptMock: vi.fn(),
   resolveSetupRunnerShellMock: vi.fn(),
   shouldRunSetupForCreateMock: vi.fn(),
@@ -114,7 +112,6 @@ vi.mock('../hooks', () => ({
 }))
 
 vi.mock('../worktree-runner-script', () => ({
-  createIssueCommandRunnerScript: createIssueCommandRunnerScriptMock,
   createSetupRunnerScript: createSetupRunnerScriptMock,
   resolveSetupRunnerShell: resolveSetupRunnerShellMock
 }))
@@ -129,10 +126,10 @@ vi.mock('../runtime/worktree-teardown', () => ({
   killAllProcessesForWorktree: killAllProcessesForWorktreeMock
 }))
 
-vi.mock('./pty', () => ({
-  clearProviderPtyState: clearProviderPtyStateMock,
-  getLocalPtyProvider: getLocalPtyProviderMock
+vi.mock('./pty/provider/state-cleanup', () => ({
+  clearProviderPtyState: clearProviderPtyStateMock
 }))
+vi.mock('./pty/provider/registry', () => ({ getLocalPtyProvider: getLocalPtyProviderMock }))
 
 vi.mock('../terminal-history-deletion', () => ({
   deleteWorktreeHistoryDir: deleteWorktreeHistoryDirMock
@@ -149,6 +146,7 @@ vi.mock('./worktree-logic', async (importOriginal) => {
 
 import { registerWorktreeHandlers } from './worktrees'
 import { resetRetirementCollisionKeyCacheForTests } from '../worktree-name-retirement'
+import { hostWorktreeTarget } from '../../shared/worktree/host-qualified-identity'
 
 type HandlerMap = Record<string, (_event: unknown, args: unknown) => unknown>
 
@@ -194,7 +192,6 @@ describe('registerWorktreeHandlers – Windows path handling', () => {
     getEffectiveHooksMock.mockReset()
     getEffectiveHooksFromConfigMock.mockReset()
     getDefaultTabsLaunchMock.mockReset()
-    createIssueCommandRunnerScriptMock.mockReset()
     createSetupRunnerScriptMock.mockReset()
     resolveSetupRunnerShellMock.mockReset()
     shouldRunSetupForCreateMock.mockReset()
@@ -308,6 +305,7 @@ describe('registerWorktreeHandlers – Windows path handling', () => {
       recordOptimisticReconcileToken: vi.fn().mockReturnValue('token-1'),
       reconcileWorktreeBaseStatus: vi.fn(),
       clearOptimisticReconcileToken: vi.fn(),
+      releaseRemovedWorktreeHostSessions: vi.fn(),
       closeFileWatchersForRemoval: vi.fn().mockResolvedValue(undefined),
       acquireFileWatcherRemoval: vi.fn().mockResolvedValue({
         finish: vi.fn().mockResolvedValue(undefined)
@@ -348,7 +346,7 @@ describe('registerWorktreeHandlers – Windows path handling', () => {
     // A name the user typed is never retired — the pool holds ordinary words people choose.
     expect(store.addRetiredWorktreeName).not.toHaveBeenCalled()
     expect(store.setWorktreeMeta).toHaveBeenCalledWith(
-      'repo-1::C:/workspaces/improve-dashboard',
+      hostWorktreeTarget({ id: 'repo-1::C:/workspaces/improve-dashboard', hostId: 'local' }),
       expect.objectContaining({
         lastActivityAt: expect.any(Number)
       })
@@ -515,7 +513,7 @@ describe('registerWorktreeHandlers – Windows path handling', () => {
       isMainWorktree: false
     }
     // Two calls: (1) worktrees:create finds the new worktree,
-    // (2) worktrees:list enumerates worktrees again.
+    // (2) worktrees:listDetected enumerates worktrees again.
     listWorktreesMock.mockResolvedValueOnce([worktreeEntry]).mockResolvedValueOnce([worktreeEntry])
     store.setWorktreeMeta.mockReturnValue({
       lastActivityAt: 123,
@@ -548,18 +546,18 @@ describe('registerWorktreeHandlers – Windows path handling', () => {
       linkedIssue: 123,
       linkedPR: 456
     })
-    const listed = await handlers['worktrees:list'](null, {
+    const listed = await handlers['worktrees:listDetected'](null, {
       repoId: 'repo-1'
     })
 
-    expect(listed).toMatchObject([
-      {
+    expect(listed).toHaveProperty('worktrees', [
+      expect.objectContaining({
         id: 'repo-1::C:/workspaces/improve-dashboard',
         displayName: 'Improve Dashboard',
         linkedIssue: 123,
         linkedPR: 456,
         lastActivityAt: 123
-      }
+      })
     ])
   })
 
@@ -597,8 +595,7 @@ describe('registerWorktreeHandlers – Windows path handling', () => {
       })
     )
     expect(store.removeWorktreeMeta).toHaveBeenCalledWith(
-      'repo-1::C:/workspaces/improve-dashboard',
-      'local'
+      hostWorktreeTarget({ id: 'repo-1::C:/workspaces/improve-dashboard', hostId: 'local' })
     )
     // Windows history lives under a path-derived hash, so scheduling must not regress on this path only.
     expect(deleteWorktreeHistoryDirMock).toHaveBeenCalledWith(
@@ -607,30 +604,5 @@ describe('registerWorktreeHandlers – Windows path handling', () => {
     expect(mainWindow.webContents.send).toHaveBeenCalledWith('worktrees:changed', {
       repoId: 'repo-1'
     })
-  })
-  it('gives the issue-command runner the same setup shell as the setup runner', () => {
-    // Regression (C4): native Windows issue runners stayed .cmd even when setup
-    // resolved to Git Bash, so same-session bash issue templates broke.
-    resolveSetupRunnerShellMock.mockReturnValue({ family: 'posix' })
-    createIssueCommandRunnerScriptMock.mockReturnValue({
-      runnerScriptPath: 'C:\\repo\\.git\\orca\\issue-command-runner.sh',
-      envVars: {},
-      shell: { family: 'posix' }
-    })
-
-    handlers['hooks:createIssueCommandRunner'](null, {
-      repoId: 'repo-1',
-      worktreePath: 'C:\\workspaces\\improve-dashboard',
-      command: 'gh issue view 42'
-    })
-
-    expect(resolveSetupRunnerShellMock).toHaveBeenCalledWith(store.getSettings())
-    expect(createIssueCommandRunnerScriptMock).toHaveBeenCalledWith(
-      expect.objectContaining({ id: 'repo-1' }),
-      'C:\\workspaces\\improve-dashboard',
-      'gh issue view 42',
-      expect.anything(),
-      { family: 'posix' }
-    )
   })
 })

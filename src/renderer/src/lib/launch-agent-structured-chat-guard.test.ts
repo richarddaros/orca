@@ -74,6 +74,7 @@ function structuredLaunchIntent(worktreeId: string, sessionId = 'codex-session-1
 
 const store = {
   clearNativeChatLaunchDraft: vi.fn(),
+  readLocalAgentInventory: () => ({ ids: null, state: 'pending' }),
   activeRepoId: 'repo-1',
   activeWorktreeId: 'wt-1',
   settings: {
@@ -105,6 +106,8 @@ const store = {
   allWorktrees: vi.fn(() => store.worktreesByRepo['repo-1']),
   tabsByWorktree: { 'wt-1': [{ id: 'tab-1' }] },
   unifiedTabsByWorktree: emptyUnifiedTabsByWorktree,
+  groupsByWorktree: {},
+  layoutByWorktree: {},
   activeGroupIdByWorktree: {},
   openFiles: [] as { id: string; worktreeId: string }[],
   browserTabsByWorktree: {} as Record<string, { id: string }[]>,
@@ -137,10 +140,14 @@ vi.mock('@/lib/telemetry', () => ({
   track: vi.fn(),
   tuiAgentToAgentKind: (agent: string) => agent
 }))
-vi.mock('@/runtime/web-runtime-session', () => ({
+vi.mock('@/runtime/web-runtime-terminal-creation', () => ({
   createWebRuntimeSessionTerminal: vi.fn(),
-  createWebRuntimeAgentSessionTerminalWithLaunchDraft: vi.fn(),
-  isWebRuntimeSessionActive: vi.fn(() => false),
+  createWebRuntimeAgentSessionTerminalWithLaunchDraft: vi.fn()
+}))
+vi.mock('@/runtime/web-runtime-session-environment', () => ({
+  isWebRuntimeSessionActive: vi.fn(() => false)
+}))
+vi.mock('../../../shared/terminal-surface-id', () => ({
   isWebTerminalSurfaceTabId: vi.fn(() => false)
 }))
 vi.mock('@/lib/launch-structured-agent-session', () => {
@@ -159,8 +166,10 @@ vi.mock('@/lib/launch-structured-agent-session', () => {
     StructuredAgentSessionOwnerUnresolvedError
   }
 })
-vi.mock('@/runtime/local-structured-session-tabs-sync', () => ({
-  refreshLocalStructuredSessionTabs: mockRefreshLocalStructuredSessionTabs,
+vi.mock('@/runtime/local-structured-session-tabs-sync/inventory-refresh', () => ({
+  refreshLocalStructuredSessionTabs: mockRefreshLocalStructuredSessionTabs
+}))
+vi.mock('@/runtime/local-structured-session-owner', () => ({
   LOCAL_STRUCTURED_SESSION_OWNER: 'local-structured-session'
 }))
 vi.mock('@/runtime/local-runtime-capabilities', () => ({
@@ -172,7 +181,7 @@ vi.mock('@/runtime/local-runtime-capabilities', () => ({
 vi.mock('@/lib/worktree-runtime-owner', () => ({
   getExecutionHostIdForWorktree: () =>
     store.repos[0]?.connectionId ? `ssh:${store.repos[0].connectionId}` : 'local',
-  getRuntimeEnvironmentIdForWorktree: () => null
+  runtimeEnvironmentIdOrLocalUnlessTwin: () => null
 }))
 vi.mock('@/runtime/structured-agent-session-client', () => ({
   callStructuredAgentSession: (target: unknown, method: string, params: unknown) =>
@@ -288,10 +297,13 @@ describe('structured chat adoption guard on the launch path', () => {
       'codex',
       'local',
       undefined,
+      undefined,
       undefined
     )
     expect(mockLaunchStructuredCodexSession).toHaveBeenCalledWith(
       expect.objectContaining({ worktreeId: 'wt-1' }),
+      expect.any(Function),
+      false,
       expect.any(Function)
     )
     expect(mockCreateTab).not.toHaveBeenCalled()
@@ -321,6 +333,7 @@ describe('structured chat adoption guard on the launch path', () => {
       'codex',
       'local',
       undefined,
+      undefined,
       undefined
     )
     expect(mockCreateTab).not.toHaveBeenCalled()
@@ -341,6 +354,7 @@ describe('structured chat adoption guard on the launch path', () => {
       'wt-1',
       'claude',
       'local',
+      undefined,
       undefined,
       undefined
     )

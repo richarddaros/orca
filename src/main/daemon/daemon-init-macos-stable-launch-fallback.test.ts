@@ -43,7 +43,8 @@ vi.mock('./client', () => moduleFactories.client())
 vi.mock('./daemon-lifecycle-event', () => moduleFactories.daemonLifecycleEvent())
 vi.mock('./daemon-spawner', () => moduleFactories.daemonSpawner())
 vi.mock('./daemon-pty-adapter', () => moduleFactories.daemonPtyAdapter())
-vi.mock('../ipc/pty', () => moduleFactories.ipcPty())
+vi.mock('../ipc/pty/provider/registry', () => moduleFactories.ptyProviderRegistry())
+vi.mock('../ipc/pty/provider/listener-lifecycle', () => moduleFactories.ptyListenerLifecycle())
 vi.mock('./macos-daemon-launchd', async (importOriginal) => {
   const actual = await importOriginal<typeof MacDaemonLaunchd>()
   return {
@@ -128,14 +129,15 @@ describe('daemon-init: macOS stable-bundle launch fallback', () => {
   })
 
   it('hands off to the fork early enough for its readiness wait and adapter to fit the gate', async () => {
+    // Compare the configured budgets without wall-clock ticks between the two reads.
+    vi.spyOn(Date, 'now').mockReturnValue(1_000_000)
     stableLaunch.failure = 'unavailable'
     await launchOnce()
     const handoffMs = (stableLaunch.deadlinesMs[0] ?? Infinity) - launcherCalledAtMs
-    // A stable failure at the handoff deadline still leaves the whole fork budget in the gate...
+    // Stable handoff must leave the fork and adapter budgets inside the PTY gate.
     expect(handoffMs + DAEMON_CHILD_STARTUP_TIMEOUT_MS + 5_000).toBeLessThanOrEqual(
       LOCAL_PTY_STARTUP_FAIL_OPEN_TIMEOUT_MS
     )
-    // ...without starving the stable launch of its own bootstrap and readiness time.
     expect(handoffMs).toBeGreaterThan(20_000)
   })
 

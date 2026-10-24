@@ -1,6 +1,6 @@
 import React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { getDefaultSettings } from '../../../../shared/constants'
 import type { GlobalSettings } from '../../../../shared/global-settings-types'
 import type { TuiAgent } from '../../../../shared/tui-agent'
@@ -166,6 +166,11 @@ function findSegmentedControl(node: unknown, ariaLabel: string): ReactElementLik
   return found
 }
 
+beforeEach(() => {
+  vi.stubGlobal('window', { api: { platform: { get: () => ({ platform: 'darwin' }) } } })
+})
+afterEach(() => vi.unstubAllGlobals())
+
 describe('AgentsPane', () => {
   beforeEach(() => {
     detectedAgentsMock.detectedIds = ['claude']
@@ -189,7 +194,7 @@ describe('AgentsPane', () => {
     expect(detectedAgentsMock.lastTarget).toEqual({ kind: 'local' })
   })
 
-  it('scopes agent detection to the active remote server', () => {
+  it('waits for host launch settings before displaying remote agent controls', () => {
     // Repro for the "Remote Server lists local agents" bug: with an Active
     // Server selected, the Installed list must probe that server's PATH.
     // Why the mutation: renderToStaticMarkup makes useSyncExternalStore read
@@ -207,8 +212,9 @@ describe('AgentsPane', () => {
         activeRuntimeEnvironmentId: 'env-1'
       })
 
-      expect(detectedAgentsMock.lastTarget).toEqual({ kind: 'runtime', environmentId: 'env-1' })
-      expect(markup).toContain('on Coder')
+      expect(detectedAgentsMock.lastTarget).toBeUndefined()
+      expect(markup).toContain('Loading agent settings…')
+      expect(markup).not.toContain('Default Agent')
     } finally {
       initialState.runtimeEnvironments = priorRuntimeEnvironments
     }
@@ -223,15 +229,12 @@ describe('AgentsPane', () => {
     expect(detectedAgentsMock.lastTarget).toEqual({ kind: 'local' })
   })
 
-  it('shows a retryable error when initial remote detection fails', () => {
+  it('shows a retryable error when initial local detection fails', () => {
     detectedAgentsMock.detectedIds = null
     detectedAgentsMock.isLoading = false
     detectedAgentsMock.detectionFailed = true
 
-    const markup = renderPane({
-      ...getDefaultSettings('/tmp'),
-      activeRuntimeEnvironmentId: 'env-1'
-    })
+    const markup = renderPane(getDefaultSettings('/tmp'))
 
     expect(markup).toContain('Couldn’t detect installed agents')
     expect(markup).toContain('Retry')
@@ -505,24 +508,40 @@ describe('AgentsPane', () => {
     expect(matchesSettingsSearch('permission', getAgentsPaneSearchEntries())).toBe(true)
     expect(matchesSettingsSearch('yolo', getAgentsPaneSearchEntries())).toBe(true)
     expect(matchesSettingsSearch('manual', getAgentsPaneSearchEntries())).toBe(true)
+    expect(matchesSettingsSearch('approve for me', getAgentsPaneSearchEntries())).toBe(true)
   })
 
-  it('applies the selected agent permission mode from settings without a mixed segment', () => {
-    const onChange = vi.fn()
-    const element = AgentPermissionsSetting({ mode: 'mixed', onChange })
-    const props = element.props.children.props.action.props as {
-      value: 'yolo'
-      onChange: (value: 'yolo' | 'manual' | 'mixed') => void
-      options: { value: string }[]
-    }
+  it.each([
+    ['manual', undefined, 'How much agents can do without asking you.', 1],
+    ['auto', 'yolo', 'Supported agents</button> approve safe actions on their own.', 2],
+    ['auto', 'mixed', 'Supported agents</button> approve safe actions on their own.', 1],
+    ['mixed', undefined, 'Most agents use Yolo. Choosing a mode resets the marked exceptions', 0]
+  ] as const)('describes %s permissions with others %s', (mode, nonAutoMode, copy, checked) => {
+    const markup = renderToStaticMarkup(
+      <TooltipProvider>
+        <AgentPermissionsSetting
+          mode={mode}
+          nonAutoMode={nonAutoMode}
+          majorityMode="yolo"
+          autoAgentLabels={['Claude', 'Claude Agent Teams', 'Codex']}
+          onChange={vi.fn()}
+          onChangeNonAuto={vi.fn()}
+        />
+      </TooltipProvider>
+    )
+    expect(markup).toContain(copy)
+    expect(markup.includes('inert=""')).toBe(mode !== 'auto')
+    expect(markup.match(/aria-checked="true"/g)?.length ?? 0).toBe(checked)
+  })
 
-    expect(props.value).toBe('yolo')
-    expect(props.options.map((option) => option.value)).toEqual(['yolo', 'manual'])
-    props.onChange('mixed')
-    expect(onChange).not.toHaveBeenCalled()
-
-    props.onChange('manual')
-    expect(onChange).toHaveBeenCalledWith('manual')
+  it('explains inline when the host cannot run Auto', () => {
+    const markup = renderToStaticMarkup(
+      <TooltipProvider>
+        <AgentPermissionsSetting mode="yolo" autoSupported={false} onChange={vi.fn()} />
+      </TooltipProvider>
+    )
+    expect(markup).toContain('Auto needs a newer Orca on this host.')
+    expect(markup).toMatch(/aria-disabled="true"[^>]*>Auto</)
   })
 
   it('keeps catalog agent ids, labels, and commands discoverable in settings search', () => {

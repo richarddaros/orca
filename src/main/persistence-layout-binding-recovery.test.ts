@@ -1,4 +1,10 @@
-import { closeTestStores, testState, createStore, makeRepo } from './persistence-test-harness'
+import {
+  closeTestStores,
+  testState,
+  createStore,
+  createStoreWithSshRemotePtyLeases,
+  makeRepo
+} from './persistence-test-harness'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { rmSync, mkdtempSync } from 'node:fs'
 import { join } from 'node:path'
@@ -12,13 +18,12 @@ import {
   TEST_LEAF_EXPIRED
 } from './persistence-session-fixtures'
 
-// Stub the ~/.ssh/config parser so the SSH-import test drives the real Store with deterministic hosts, not the operator's actual ~/.ssh/config.
 const { loadUserSshConfigMock, sshConfigHostsToTargetsMock } = vi.hoisted(() => ({
   loadUserSshConfigMock: vi.fn(),
   sshConfigHostsToTargetsMock: vi.fn()
 }))
 
-vi.mock('./ssh/ssh-config-parser', () => ({
+vi.mock('./ssh/config/ssh-config-parser', () => ({
   loadUserSshConfig: loadUserSshConfigMock,
   sshConfigHostsToTargets: sshConfigHostsToTargetsMock
 }))
@@ -213,18 +218,18 @@ describe('Store', () => {
     expect(leafId).not.toBe(TEST_LEAF_2)
   })
 
-  // An `expired` lease means reattach gave up, not that the remote shell died. Dropping the
-  // binding here left the pane unable to re-adopt a process that is still running.
+  // Expired means reattach gave up; the remote shell can still be alive and need its binding.
   it('restores a cleared SSH binding after a lease expired so the pane can reattach', async () => {
-    const store = await createStore()
-    store.upsertSshRemotePtyLease({
-      targetId: 'ssh-1',
-      ptyId: 'remote-pty',
-      worktreeId: 'wt1',
-      tabId: 'tab1',
-      leafId: TEST_LEAF_1,
-      state: 'expired'
-    })
+    const store = createStoreWithSshRemotePtyLeases([
+      {
+        targetId: 'ssh-1',
+        ptyId: 'remote-pty',
+        worktreeId: 'wt1',
+        tabId: 'tab1',
+        leafId: TEST_LEAF_1,
+        state: 'expired'
+      }
+    ])
     store.setWorkspaceSession({
       activeRepoId: 'r1',
       activeWorktreeId: 'wt1',
@@ -289,15 +294,16 @@ describe('Store', () => {
   })
 
   it('does not restore cleared SSH bindings after a lease was terminated', async () => {
-    const store = await createStore()
-    store.upsertSshRemotePtyLease({
-      targetId: 'ssh-1',
-      ptyId: 'remote-pty',
-      worktreeId: 'wt1',
-      tabId: 'tab1',
-      leafId: TEST_LEAF_1,
-      state: 'terminated'
-    })
+    const store = createStoreWithSshRemotePtyLeases([
+      {
+        targetId: 'ssh-1',
+        ptyId: 'remote-pty',
+        worktreeId: 'wt1',
+        tabId: 'tab1',
+        leafId: TEST_LEAF_1,
+        state: 'terminated'
+      }
+    ])
     store.setWorkspaceSession({
       activeRepoId: 'r1',
       activeWorktreeId: 'wt1',
@@ -360,15 +366,16 @@ describe('Store', () => {
   })
 
   it('does not let an expired lease for another tab suppress a matching pty id', async () => {
-    const store = await createStore()
-    store.upsertSshRemotePtyLease({
-      targetId: 'ssh-1',
-      ptyId: 'remote-pty',
-      worktreeId: 'wt1',
-      tabId: 'tab-expired',
-      leafId: TEST_LEAF_EXPIRED,
-      state: 'expired'
-    })
+    const store = createStoreWithSshRemotePtyLeases([
+      {
+        targetId: 'ssh-1',
+        ptyId: 'remote-pty',
+        worktreeId: 'wt1',
+        tabId: 'tab-expired',
+        leafId: TEST_LEAF_EXPIRED,
+        state: 'expired'
+      }
+    ])
     store.setWorkspaceSession({
       activeRepoId: 'r1',
       activeWorktreeId: 'wt1',
@@ -433,24 +440,25 @@ describe('Store', () => {
   })
 
   it('does not let an expired lease for another SSH target suppress the same tab binding', async () => {
-    const store = await createStore()
+    const store = createStoreWithSshRemotePtyLeases([
+      {
+        targetId: 'ssh-expired',
+        ptyId: 'remote-pty',
+        worktreeId: 'repo-live::/wt',
+        tabId: 'tab-live',
+        leafId: TEST_LEAF_LIVE,
+        state: 'expired'
+      },
+      {
+        targetId: 'ssh-live',
+        ptyId: 'remote-pty',
+        worktreeId: 'repo-live::/wt',
+        tabId: 'tab-live',
+        leafId: TEST_LEAF_LIVE,
+        state: 'detached'
+      }
+    ])
     store.addRepo(makeRepo({ id: 'repo-live', connectionId: 'ssh-live' }))
-    store.upsertSshRemotePtyLease({
-      targetId: 'ssh-expired',
-      ptyId: 'remote-pty',
-      worktreeId: 'repo-live::/wt',
-      tabId: 'tab-live',
-      leafId: TEST_LEAF_LIVE,
-      state: 'expired'
-    })
-    store.upsertSshRemotePtyLease({
-      targetId: 'ssh-live',
-      ptyId: 'remote-pty',
-      worktreeId: 'repo-live::/wt',
-      tabId: 'tab-live',
-      leafId: TEST_LEAF_LIVE,
-      state: 'detached'
-    })
     store.setWorkspaceSession({
       activeRepoId: 'repo-live',
       activeWorktreeId: 'repo-live::/wt',
@@ -515,12 +523,13 @@ describe('Store', () => {
   })
 
   it('does not treat contextless expired leases as wildcards for contextual bindings', async () => {
-    const store = await createStore()
-    store.upsertSshRemotePtyLease({
-      targetId: 'ssh-1',
-      ptyId: 'remote-pty',
-      state: 'expired'
-    })
+    const store = createStoreWithSshRemotePtyLeases([
+      {
+        targetId: 'ssh-1',
+        ptyId: 'remote-pty',
+        state: 'expired'
+      }
+    ])
     store.setWorkspaceSession({
       activeRepoId: 'r1',
       activeWorktreeId: 'wt1',
@@ -585,14 +594,15 @@ describe('Store', () => {
   })
 
   it('does not treat layout-level leases missing worktree context as contextual matches', async () => {
-    const store = await createStore()
-    store.upsertSshRemotePtyLease({
-      targetId: 'ssh-1',
-      ptyId: 'remote-pty',
-      tabId: 'tab1',
-      leafId: TEST_LEAF_1,
-      state: 'expired'
-    })
+    const store = createStoreWithSshRemotePtyLeases([
+      {
+        targetId: 'ssh-1',
+        ptyId: 'remote-pty',
+        tabId: 'tab1',
+        leafId: TEST_LEAF_1,
+        state: 'expired'
+      }
+    ])
     store.setWorkspaceSession({
       activeRepoId: 'r1',
       activeWorktreeId: 'wt1',

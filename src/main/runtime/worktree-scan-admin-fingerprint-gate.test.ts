@@ -18,14 +18,6 @@ const electronMocks = vi.hoisted(() => {
 })
 vi.mock('electron', () => electronMocks)
 
-const getSshGitProviderMock = vi.hoisted(() => vi.fn())
-vi.mock('../providers/ssh-git-dispatch', () => ({
-  getSshGitProvider: getSshGitProviderMock,
-  getSshGitProviderGeneration: vi.fn(() => 0),
-  SSH_GIT_PROVIDER_UNAVAILABLE_MESSAGE: 'unavailable',
-  requireSshGitProvider: (connectionId: string) => getSshGitProviderMock(connectionId)
-}))
-
 const listWorktreesStrictMock = vi.hoisted(() => vi.fn())
 vi.mock('../git/worktree', async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),
@@ -44,6 +36,7 @@ import {
 } from './orca-runtime'
 import { RESOLVED_WORKTREE_REPO_TIMEOUT_MS } from './repo-worktree-row-resolution'
 import { canonicalWorktreeIdentity } from '../../shared/worktree/identity'
+import type { HostWorktreeTarget } from '../../shared/worktree/host-qualified-identity'
 
 const REPO_ID = 'repo-local'
 const REPO_PATH = '/Users/me/dev/app'
@@ -100,7 +93,7 @@ function makeStore(options: { connectionId?: string; repoCount?: number; repoPat
     getRepos: () => repos,
     getAllWorktreeMeta: () => metaById,
     getWorktreeMeta: (id: string) => metaById[id],
-    setWorktreeMeta: (id: string, meta: Record<string, unknown>) => {
+    setWorktreeMeta: ({ id }: HostWorktreeTarget, meta: Record<string, unknown>) => {
       metaById[id] = { ...(metaById[id] ?? makeMeta()), ...meta } as never
       return metaById[id]
     },
@@ -181,7 +174,6 @@ function stallProbeOnce(): (fingerprint: string | null) => void {
 
 describe('worktree scan admin-fingerprint gate', () => {
   beforeEach(() => {
-    getSshGitProviderMock.mockReset()
     listWorktreesStrictMock.mockReset()
     listWorktreesStrictMock.mockResolvedValue([
       { path: REPO_PATH, head: 'abc', branch: 'main', isBare: false, isMainWorktree: true },
@@ -326,17 +318,13 @@ describe('worktree scan admin-fingerprint gate', () => {
   it('never consults the probe for SSH repos', async () => {
     vi.useFakeTimers()
     try {
-      const listWorktrees = vi.fn(async () => [
-        { path: REPO_PATH, head: 'abc', branch: 'main', isBare: false, isMainWorktree: true }
-      ])
-      getSshGitProviderMock.mockReturnValue({ listWorktrees })
       const { list } = makeRuntime({ connectionId: 'ssh-remote-1' })
 
       await list()
       vi.advanceTimersByTime(SCAN_TTL_MS + 1_000)
       await list()
 
-      expect(listWorktrees).toHaveBeenCalledTimes(2)
+      expect(listWorktreesStrictMock).not.toHaveBeenCalled()
       expect(readRepoWorktreeAdminFingerprintMock).not.toHaveBeenCalled()
     } finally {
       vi.useRealTimers()
@@ -609,7 +597,6 @@ describe('worktree scan admin-fingerprint gate', () => {
 
 describe('scoped explicit worktree-id resolution', () => {
   beforeEach(() => {
-    getSshGitProviderMock.mockReset()
     listWorktreesStrictMock.mockReset()
     listWorktreesStrictMock.mockImplementation(async (repoPath: string) => [
       { path: repoPath, head: 'abc', branch: 'main', isBare: false, isMainWorktree: true },

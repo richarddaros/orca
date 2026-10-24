@@ -1,10 +1,8 @@
 import { useAppStore } from '@/store'
 import type { AppState } from '@/store/types'
-import type { RuntimeFileOperationArgs } from '@/runtime/runtime-file-client'
-import {
-  runtimeTargetForOwnerEnvironment,
-  type RuntimeClientTarget
-} from '@/runtime/runtime-client-target'
+import type { RuntimeFileOperationArgs } from '@/runtime/runtime-file-client-types'
+import { runtimeTargetForOwnerEnvironment } from '@/runtime/runtime-client-target'
+import type { RuntimeClientTarget } from '../../../../shared/runtime-client-target'
 import {
   resolveWorktreeOperationRouteResult,
   type WorktreeOperationRouteResolution
@@ -16,6 +14,11 @@ import { isFloatingWorkspaceId } from '../../../../shared/floating-workspace-wor
 import { resolveNativeChatTabDirectory } from './native-chat-tab-directory'
 import { useMemo } from 'react'
 import { useShallow } from 'zustand/react/shallow'
+import {
+  selectDetectedWorktreesByRepo,
+  selectFolderWorkspaces,
+  selectWorktreesByRepo
+} from '@/store/workspace-record-selectors'
 
 /** The transcript must not read until ownership and its path are both known. */
 export type NativeChatImageRuntimeContext = RuntimeFileOperationArgs | null
@@ -48,9 +51,9 @@ export function selectNativeChatImageOwnerState(state: AppState): OwnerState {
   return {
     settings: state.settings,
     repos: state.repos,
-    worktreesByRepo: state.worktreesByRepo,
-    detectedWorktreesByRepo: state.detectedWorktreesByRepo,
-    folderWorkspaces: state.folderWorkspaces,
+    worktreesByRepo: selectWorktreesByRepo(state),
+    detectedWorktreesByRepo: selectDetectedWorktreesByRepo(state),
+    folderWorkspaces: selectFolderWorkspaces(state),
     floatingWorkspacePath: state.floatingWorkspacePath,
     structuredSessionLaunchDirectoryByTabId: state.structuredSessionLaunchDirectoryByTabId,
     projectGroups: state.projectGroups,
@@ -121,7 +124,8 @@ export function resolveNativeChatImageRuntimeContext(
     return null
   }
   const host = parseExecutionHostId(executionHostId)
-  if (!host) {
+  // Why: an `ssh:` host is served only through its paired server; without one there is no route.
+  if (!host || (host.kind === 'ssh' && !route.runtimeEnvironmentId)) {
     return null
   }
   const context: RuntimeFileOperationArgs = {
@@ -139,10 +143,6 @@ export function resolveNativeChatImageRuntimeContext(
       )
       context.expectedSshTargetId = expectation.expectedSshTargetId
       context.expectedSshConnectionGeneration = expectation.expectedSshConnectionGeneration
-      if (!route.runtimeEnvironmentId) {
-        context.connectionId = host.targetId
-        context.expectedExternalSshTargetId = host.targetId
-      }
     } catch {
       return null
     }

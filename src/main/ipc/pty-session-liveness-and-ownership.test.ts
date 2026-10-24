@@ -2,12 +2,10 @@ import { describe, expect, it, vi } from 'vitest'
 import { onMock } from './pty-ipc-mock-registry'
 import { setupPtyIpcSuite } from './pty-ipc-test-harness'
 import { AGENT_SESSION_CLAIM_DIGEST_VERSION } from '../../shared/agent-session-host-authority'
-import {
-  deletePtyOwnership,
-  registerPtyHandlers,
-  setPtyOwnership,
-  setLocalPtyProvider
-} from './pty'
+import { deletePtyOwnership, setPtyOwnership } from './pty/provider/ownership-state'
+import { registerPtyHandlers } from './pty/register-handlers'
+import { setLocalPtyProvider } from './pty/provider/registry'
+import { SSH_PROVIDER_UNREGISTERED_REASON } from '../../shared/pty-liveness-verdict'
 
 vi.mock('electron', () => import('./pty-ipc-mock-registry').then((m) => m.electronModuleMock()))
 vi.mock('fs', () => import('./pty-ipc-mock-registry').then((m) => m.fsModuleMock()))
@@ -223,7 +221,7 @@ describe('registerPtyHandlers', () => {
       getDefaultShell: vi.fn(),
       getProfiles: vi.fn()
     } as never)
-    const store = { markSshRemotePtyLease: vi.fn(), clearSshRemotePtyKillIntent: vi.fn() }
+    const store = { markSshRemotePtyLease: vi.fn() }
     registerPtyHandlers(
       mainWindow as never,
       undefined,
@@ -236,7 +234,11 @@ describe('registerPtyHandlers', () => {
     await handlers.get('pty:kill')!(null, { id: 'ssh:ssh-1@@relay-pty' })
 
     expect(localShutdown).not.toHaveBeenCalled()
-    expect(store.markSshRemotePtyLease).toHaveBeenCalledWith('ssh-1', 'relay-pty', 'terminated')
+    expect(store.markSshRemotePtyLease).toHaveBeenCalledWith(
+      'ssh-1',
+      'relay-pty',
+      expect.objectContaining({ unverifiableReason: SSH_PROVIDER_UNREGISTERED_REASON })
+    )
   })
   it('ignores fire-and-forget IPC for SSH-owned PTYs this process cannot dispatch', () => {
     const local = { write: vi.fn(), resize: vi.fn(), sendSignal: vi.fn() }

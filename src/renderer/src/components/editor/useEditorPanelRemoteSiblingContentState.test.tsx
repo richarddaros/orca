@@ -13,23 +13,25 @@ const mocks = vi.hoisted(() => ({
   getState: vi.fn()
 }))
 
-vi.mock('@/runtime/runtime-file-client', () => ({
+vi.mock('@/runtime/runtime-file-routing', () => ({
   getRuntimeFileReadScope: vi.fn(
     (
       settings: { activeRuntimeEnvironmentId?: string | null } | null | undefined,
       connectionId?: string
     ) => connectionId ?? settings?.activeRuntimeEnvironmentId ?? null
-  ),
-  readRuntimeFileContent: mocks.readRuntimeFileContent,
-  subscribeRuntimeFileChanges: vi.fn()
+  )
 }))
+vi.mock('@/runtime/runtime-file-read-client', () => ({
+  readRuntimeFileContent: mocks.readRuntimeFileContent
+}))
+vi.mock('@/runtime/runtime-file-watch-client', () => ({ subscribeRuntimeFileChanges: vi.fn() }))
 
-vi.mock('@/runtime/runtime-git-client', () => ({
+vi.mock('@/runtime/runtime-git-diff-client', () => ({
   getRuntimeGitBranchDiff: vi.fn(),
   getRuntimeGitCommitDiff: vi.fn(),
-  getRuntimeGitDiff: vi.fn(),
-  getRuntimeGitScope: vi.fn(() => null)
+  getRuntimeGitDiff: vi.fn()
 }))
+vi.mock('@/runtime/runtime-git-client-context', () => ({ getRuntimeGitScope: vi.fn(() => null) }))
 
 vi.mock('@/lib/connection-context', () => ({
   getConnectionId: vi.fn(),
@@ -48,8 +50,7 @@ vi.mock('./migrate-restored-editor-file-owner', () => ({
 }))
 
 vi.mock('@/lib/worktree-runtime-owner', () => ({
-  getExecutionHostIdForWorktree: vi.fn(() => 'local'),
-  getExplicitRuntimeEnvironmentIdForWorktree: vi.fn(() => null)
+  getExecutionHostIdForWorktree: vi.fn(() => 'local')
 }))
 
 // These fixtures' workspaces live on runtime-1, so an unstamped tab resolves there.
@@ -71,7 +72,12 @@ vi.mock('@/lib/file-owner-runtime-target', () => {
   }
 })
 
-vi.mock('@/store', () => ({ useAppStore: { getState: mocks.getState } }))
+vi.mock('@/store', () => ({
+  useAppStore: Object.assign(
+    (select: (state: ReturnType<typeof mocks.getState>) => unknown) => select(mocks.getState()),
+    { getState: mocks.getState }
+  )
+}))
 
 vi.mock('./useEditorPanelExternalContentEvents', () => ({
   useEditorPanelExternalContentEvents: vi.fn(),
@@ -177,6 +183,35 @@ describe('remote sibling editor content routing', () => {
 
     await act(async () => root?.render(<HookProbe activeFile={activeFile} />))
 
+    await vi.waitFor(() =>
+      expect(mocks.migrateRestoredEditorFileOwner).toHaveBeenCalledWith(
+        activeFile.id,
+        route,
+        'runtime-1'
+      )
+    )
+    expect(mocks.readRuntimeFileContent).not.toHaveBeenCalled()
+  })
+
+  it('moves a restored read-only server tab of another workspace file to that workspace', async () => {
+    const activeFile = createOpenFile({
+      id: '/work/repo-b/docs/readme.md',
+      filePath: '/work/repo-b/docs/readme.md',
+      relativePath: '/work/repo-b/docs/readme.md',
+      worktreeId: 'repo-a::/work/repo-a',
+      runtimeEnvironmentId: 'runtime-1',
+      readOnly: true
+    })
+    const route = {
+      worktreeId: 'repo-b::/work/repo-b',
+      relativePath: 'docs/readme.md',
+      executionHostId: 'runtime:runtime-1'
+    } as const
+    mocks.findWorkspaceFileRoute.mockReturnValue(route)
+
+    await act(async () => root?.render(<HookProbe activeFile={activeFile} />))
+
+    // Why: a server reads only by workspace-relative path, so no view of it stays in another workspace.
     await vi.waitFor(() =>
       expect(mocks.migrateRestoredEditorFileOwner).toHaveBeenCalledWith(
         activeFile.id,

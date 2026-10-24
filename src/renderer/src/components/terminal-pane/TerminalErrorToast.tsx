@@ -6,6 +6,7 @@ import {
   isFolderWorkspacePathError
 } from '@/lib/folder-workspace-path-status'
 import { Button } from '@/components/ui/button'
+import { agentLaunchErrorText, isAgentLaunchOnlyError } from './agent-launch-pane-notice-text'
 import {
   hasClientEnvironmentFooter,
   stripClientEnvironmentFooter
@@ -14,6 +15,10 @@ import {
   localizeTerminalSpawnHints,
   withoutTerminalSpawnIssueRequest
 } from './terminal-spawn-error-display'
+import {
+  describeSshSignInRequiredTerminalError,
+  isSshSignInRequiredTerminalError
+} from './terminal-ssh-sign-in-error'
 
 const SSH_PREFIX = 'SSH connection is not active'
 // Produced by pty-connection.ts reportError() when a PTY reattach can't reach its SSH host.
@@ -30,6 +35,8 @@ const STALE_DAEMON_CWD_MARKERS = [
 ]
 // Thrown by ipc/pty.ts when a persisted pane owner can't be proven alive or dead (STA-3536).
 const PANE_OWNER_UNVERIFIED_MARKER = 'terminal_pane_owner_unverified'
+// Main lost the pane to another connection twice in one attach, or an older host never retries.
+const PANE_OWNER_CHANGED_MARKER = 'terminal_pane_owner_changed'
 // remote-runtime-pty-transport.ts surfaces this English literal as a wire-level marker, so it is
 // translated here rather than at the source -- otherwise the banner mixes English with the
 // localized chrome around it (#9194).
@@ -57,9 +64,6 @@ const UNREATTACHABLE_SESSIONS = [
 const SOURCE_RESTORE_REQUIRED = tokenPattern(
   'SSH_PTY_SOURCE_RESTORE_REQUIRED(?::[ \\t]*\\S*(?:[ \\t]+\\S+)?)?'
 )
-// An older Orca build's relay may still run this terminal, and this build cannot reach it. Not one of
-// the sources above: that copy implies the session is gone.
-const HELD_BY_PREVIOUS_RELAY = tokenPattern('SSH_PTY_HELD_BY_PREVIOUS_RELAY(?::[ \\t]*\\S*)?')
 // The pane's saved session is owned by another host connection, e.g. an older build's relay tab.
 const OWNER_HOST_MISMATCH = tokenPattern('terminal_pane_owner_host_mismatch')
 
@@ -96,21 +100,27 @@ export function isExplainedTerminalError(error: string): boolean {
         [
           TERMINAL_HOST_GONE,
           SOURCE_RESTORE_REQUIRED,
-          HELD_BY_PREVIOUS_RELAY,
           OWNER_HOST_MISMATCH,
           ...UNREATTACHABLE_SESSIONS
         ].some((pattern) => pattern.match.test(line))
     )
 }
 
-/** A terminal the previous Orca version's relay runs on the host; this client's details say nothing about it. */
-export function isHeldByPreviousRelayError(error: string): boolean {
-  return HELD_BY_PREVIOUS_RELAY.match.test(error)
-}
-
 export function isPaneOwnerUnverifiedError(error: string): boolean {
   const lines = error.split('\n').filter((line) => line.length > 0)
   return lines.length > 0 && lines.every((line) => line.includes(PANE_OWNER_UNVERIFIED_MARKER))
+}
+
+/** Owner errors a reattach can recover from: the saved session is kept, and Retry asks again. */
+export function isPaneOwnerRecoveryError(error: string): boolean {
+  const lines = error.split('\n').filter((line) => line.length > 0)
+  return (
+    lines.length > 0 &&
+    lines.every(
+      (line) =>
+        line.includes(PANE_OWNER_UNVERIFIED_MARKER) || line.includes(PANE_OWNER_CHANGED_MARKER)
+    )
+  )
 }
 
 function humanizeUnreattachableSession(error: string): string {
@@ -138,9 +148,19 @@ function humanizeFolderWorkspacePathErrors(error: string): string {
   return error.split('\n').map(humanizeFolderWorkspacePathError).join('\n')
 }
 
+/** An SSH host state (reconnecting, or waiting for the user to sign in), not a bug to report. */
+function isSshHostStateTerminalError(error: string): boolean {
+  return isSshSignInRequiredTerminalError(error) || isSshReconnectOwnedTerminalError(error)
+}
+
 /** Swaps raw daemon-boundary codes for copy a user can act on. */
-export function humanizeTerminalError(error: string): string {
-  let humanized = humanizeFolderWorkspacePathErrors(localizeTerminalSpawnHints(error))
+export function humanizeTerminalError(error: string, agentId?: string | null): string {
+  if (isSshSignInRequiredTerminalError(error)) {
+    return describeSshSignInRequiredTerminalError(error)
+  }
+  let humanized = humanizeFolderWorkspacePathErrors(
+    localizeTerminalSpawnHints(agentLaunchErrorText(error, agentId) ?? error)
+  )
   if (humanized.includes(PANE_OWNER_UNVERIFIED_MARKER)) {
     const explanation = isPaneOwnerUnverifiedError(humanized)
       ? translate(
@@ -153,16 +173,16 @@ export function humanizeTerminalError(error: string): string {
         )
     humanized = humanized.replaceAll(PANE_OWNER_UNVERIFIED_MARKER, () => explanation)
   }
+  humanized = humanized.replaceAll(PANE_OWNER_CHANGED_MARKER, () =>
+    translate(
+      'auto.components.terminal.pane.TerminalErrorToast.ownerUnknown',
+      "Orca couldn't verify this terminal's owner."
+    )
+  )
   humanized = humanized.replace(SOURCE_RESTORE_REQUIRED.replaceAll, () =>
     translate(
       'auto.components.terminal.pane.TerminalErrorToast.sourceRestoring',
       'Reconnecting this terminal — its output is being re-established. The session is still running.'
-    )
-  )
-  humanized = humanized.replace(HELD_BY_PREVIOUS_RELAY.replaceAll, () =>
-    translate(
-      'auto.components.terminal.pane.TerminalErrorToast.heldByPreviousRelay',
-      'This terminal is still running on the host under the previous Orca version, which this version cannot connect to. It keeps running until it exits. Open a new terminal to keep working here.'
     )
   )
   humanized = humanized.replace(OWNER_HOST_MISMATCH.replaceAll, () =>
@@ -203,31 +223,37 @@ export function humanizeTerminalError(error: string): string {
 
 export function TerminalErrorToast({
   error,
+  agentId,
   paneOnClient = true,
   onDismiss,
   onRestartDaemon,
-  onRetry
+  onRetry,
+  onOpenNewTerminal
 }: {
   error: string
+  agentId?: string | null
   /** False for a pane on an SSH or remote host, or one whose host is not yet known. */
   paneOnClient?: boolean
   onDismiss: () => void
   onRestartDaemon?: () => void
   onRetry?: () => Promise<boolean>
+  /** Leaves this pane and its saved session untouched. */
+  onOpenNewTerminal?: () => void
 }): React.JSX.Element {
-  const ssh = isSshReconnectOwnedTerminalError(error)
+  const ssh = isSshHostStateTerminalError(error)
   // Why: the client's OS and shell describe neither the host nor its shell, and the renderer knows neither.
-  const showClientEnvironment = paneOnClient && !ssh && !isHeldByPreviousRelayError(error)
-  const paneOwnerUnverified = isPaneOwnerUnverifiedError(error)
+  const showClientEnvironment = paneOnClient && !ssh
+  const paneOwnerUnverified = isPaneOwnerRecoveryError(error)
   const showDaemonRestart = !ssh && onRestartDaemon && shouldOfferDaemonRestart(error)
   // Restart cannot recover a session after its owning daemon exits.
   const showIssueLink =
     !ssh &&
     !paneOwnerUnverified &&
     !showDaemonRestart &&
+    !isAgentLaunchOnlyError(error) &&
     !isExplainedTerminalError(error) &&
     !isFolderWorkspacePathOnlyError(error)
-  const humanizedError = humanizeTerminalError(error)
+  const humanizedError = humanizeTerminalError(error, agentId)
   // Why: the toast appends its own linked request, so the host's plain-text one would repeat it.
   const displayError = showIssueLink
     ? withoutTerminalSpawnIssueRequest(humanizedError)
@@ -374,6 +400,15 @@ export function TerminalErrorToast({
             {retrying
               ? translate('auto.components.terminal.pane.TerminalErrorToast.retrying', 'Retrying…')
               : translate('auto.components.terminal.pane.TerminalErrorToast.retry', 'Retry')}
+          </Button>
+        ) : null}
+        {/* Why: an owner can stay unverifiable, so Retry alone can loop forever. */}
+        {paneOwnerUnverified && onOpenNewTerminal ? (
+          <Button variant="outline" size="xs" onClick={onOpenNewTerminal} className="ml-2">
+            {translate(
+              'auto.components.terminal.pane.TerminalErrorToast.openNewTerminal',
+              'Open new terminal'
+            )}
           </Button>
         ) : null}
         <button

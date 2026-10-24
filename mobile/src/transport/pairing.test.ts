@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { decodePairingUrl, extractPairingCodeFromUrl, parsePairingCode } from './pairing'
 import type { PairingOffer } from './types'
+import { PAIRING_INPUT_MAX_CHARACTERS } from '../../../src/shared/mobile-pairing-protocol-limits'
 
 const offer: PairingOffer = {
   v: 2,
@@ -39,11 +40,6 @@ describe('pairing deep links', () => {
     expect(extractPairingCodeFromUrl('orca://pair?code=query-code#hash-code')).toBe('query-code')
   })
 
-  it('extracts the code from a verified https pairing link fragment', () => {
-    expect(extractPairingCodeFromUrl('https://www.onorca.dev/pair#abc123')).toBe('abc123')
-    expect(extractPairingCodeFromUrl('https://www.onorca.dev/pair?code=abc123')).toBeNull()
-  })
-
   it('ignores empty and unrelated URLs', () => {
     expect(extractPairingCodeFromUrl('orca://pair')).toBeNull()
     expect(extractPairingCodeFromUrl('https://example.com/pair#abc123')).toBeNull()
@@ -68,11 +64,27 @@ describe('pairing deep links', () => {
     expect(parsePairingCode(code)).toEqual(offer)
   })
 
-  it('parses a pasted or scanned verified https pairing link', () => {
-    const link = `https://www.onorca.dev/pair#${encodeOffer()}`
+  it('rejects oversized raw codes and URLs before parsing', () => {
+    const code = encodeOffer()
+    const oversizedRawCode = `${code}${' '.repeat(PAIRING_INPUT_MAX_CHARACTERS)}`
+    const oversizedUrl = `orca://pair?code=${code}&ignored=${'A'.repeat(
+      PAIRING_INPUT_MAX_CHARACTERS
+    )}`
 
-    expect(parsePairingCode(link)).toEqual(offer)
-    expect(decodePairingUrl(link)).toEqual(offer)
+    expect(parsePairingCode(oversizedRawCode)).toBeNull()
+    expect(extractPairingCodeFromUrl(oversizedUrl)).toBeNull()
+    expect(decodePairingUrl(oversizedUrl)).toBeNull()
+  })
+
+  it('preserves legacy padding and aliases with the same decoded offer', () => {
+    const paddedOffer = { ...offer, endpoint: `${offer.endpoint}/a` }
+    const code = encodeOffer(paddedOffer)
+    expect(code.length % 4).toBe(2)
+    const alias = `${code.slice(0, -1)}${base64Alias(code.at(-1)!)}`
+
+    expect(parsePairingCode(`${code}=`)).toEqual(paddedOffer)
+    expect(parsePairingCode(`${code}==`)).toEqual(paddedOffer)
+    expect(parsePairingCode(alias)).toEqual(paddedOffer)
   })
 
   it('preserves a TLS reverse-proxy endpoint with an explicit port and path', () => {
@@ -85,3 +97,8 @@ describe('pairing deep links', () => {
     expect(parsePairingCode(code)).toEqual(proxiedOffer)
   })
 })
+
+function base64Alias(character: string): string {
+  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_'
+  return alphabet[alphabet.indexOf(character) + 1]!
+}

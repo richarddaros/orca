@@ -14,7 +14,7 @@ const CHECKOUT_MAX_OUTPUT_BYTES = 1024 * 1024
 // Why: the wire endpoints only need the runtime RPC host, the renderer client, and
 // the shared codec, plus a release's relay that an app update leaves running. Skipping cli keeps a cold CI
 // extraction a few seconds.
-// The phone's `worktree ps` row reader is one self-contained file, so it rides along alone.
+// The phone's `worktree ps` row reader rides along alone; it imports only from src/shared.
 // Workspace packages the release declares are added per release (releaseWorkspaceArchivePaths).
 const ARCHIVE_PATHS = [
   'src/main',
@@ -240,8 +240,9 @@ async function releaseWorkspaceArchivePaths(
 export async function extractReleaseCheckoutTree(
   repoRoot: string,
   staging: string,
-  commit: string
-): Promise<void> {
+  commit: string,
+  sourceOnly = false
+): Promise<PackageImports> {
   const archive = join(staging, '.release-checkout.tar')
   const deadline = Date.now() + CHECKOUT_PROCESS_TIMEOUT_MS
   const workspacePaths = await releaseWorkspaceArchivePaths(repoRoot, commit, deadline)
@@ -273,12 +274,15 @@ export async function extractReleaseCheckoutTree(
   }
   const packageImports: PackageImports = new Map()
   await prepareExtractedTree(staging, workspacePaths, packageImports)
-  await installMissingPackageStandIns(
-    staging,
-    commit,
-    packageImports,
-    JSON.parse(await readFile(join(repoRoot, 'package.json'), 'utf8'))
-  )
+  if (!sourceOnly) {
+    await installMissingPackageStandIns(
+      staging,
+      commit,
+      packageImports,
+      JSON.parse(await readFile(join(repoRoot, 'package.json'), 'utf8'))
+    )
+  }
+  return packageImports
 }
 
 export async function scavengeReleaseCheckoutStaging(

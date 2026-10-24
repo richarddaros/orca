@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { rmSync, mkdtempSync, existsSync } from 'node:fs'
+import { rmSync, mkdtempSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import type { PersistedState } from '../shared/persisted-state-types'
@@ -18,13 +18,12 @@ import {
 } from './persistence-test-harness'
 import { installFakeAppEnvironment } from '../../config/scripts/vitest-host-ports-setup'
 
-// Stub the ~/.ssh/config parser so the SSH-import test drives the real Store with deterministic hosts, not the operator's actual ~/.ssh/config.
 const { loadUserSshConfigMock, sshConfigHostsToTargetsMock } = vi.hoisted(() => ({
   loadUserSshConfigMock: vi.fn(),
   sshConfigHostsToTargetsMock: vi.fn()
 }))
 
-vi.mock('./ssh/ssh-config-parser', () => ({
+vi.mock('./ssh/config/ssh-config-parser', () => ({
   loadUserSshConfig: loadUserSshConfigMock,
   sshConfigHostsToTargets: sshConfigHostsToTargetsMock
 }))
@@ -63,8 +62,7 @@ async function createStore() {
     return createFreshStore()
   }
   const { Store, initDataPath } = await import('./persistence')
-  // Why here: userData resolves through AppEnvironment, and this must point at this
-  // file's temp dir rather than the global fake's shared one, after resetModules.
+  // Reinstall this test’s userData path after resetModules before initializing Store.
   installFakeAppEnvironment({ getPath: () => testState.dir })
   initDataPath()
   return createSqliteTestStore(Store, { dataFile: join(testState.dir, 'orca-data.json') })
@@ -91,7 +89,6 @@ describe('Store', () => {
     await closeTestStores()
     rmSync(testState.dir, { recursive: true, force: true })
   })
-  // ── UI state ───────────────────────────────────────────────────────
 
   it('defaults new users to compact status bar usage', async () => {
     const store = await createStore()
@@ -127,12 +124,29 @@ describe('Store', () => {
     expect(reloaded.getUI().statusBarUsageMode).toBe(mode)
   })
 
+  it('moves the legacy host scope with a written host list, so "all hosts" sticks', async () => {
+    const store = await createStore()
+    store.updateUI({ workspaceHostScope: 'ssh:box', visibleWorkspaceHostIds: ['ssh:box'] })
+
+    store.updateUI({ visibleWorkspaceHostIds: null })
+    expect(store.getUI()).toMatchObject({
+      visibleWorkspaceHostIds: null,
+      workspaceHostScope: 'all'
+    })
+    store.updateUI({ visibleWorkspaceHostIds: ['ssh:box'] })
+    expect(store.getUI().workspaceHostScope).toBe('ssh:box')
+    store.updateUI({ visibleWorkspaceHostIds: ['local', 'ssh:box'] })
+    expect(store.getUI().workspaceHostScope).toBe('ssh:box')
+    store.updateUI({ sidebarWidth: 300 })
+    expect(store.getUI().workspaceHostScope).toBe('ssh:box')
+  })
+
   it('updateUI merges partial updates', async () => {
     const store = await createStore()
     store.updateUI({ sidebarWidth: 400 })
     const ui = store.getUI()
     expect(ui.sidebarWidth).toBe(400)
-    expect(ui.groupBy).toBe('repo') // default preserved
+    expect(ui.groupBy).toBe('repo')
     expect(ui.dismissedUpdateVersion).toBeNull()
   })
 
@@ -168,11 +182,7 @@ describe('Store', () => {
     ])
   })
 
-  // The RPC now strips manualRepoOrder, so every paired-client ui.set reaches the store without
-  // the key. Absent has to mean preserve: if it read as clear, the strip would erase the desktop's
-  // order on the first unrelated setting a phone or web client changes.
-  // Absent-means-preserve is what makes the pairing-local strip safe: a client's ui.set arrives
-  // without these fields, so the desktop's own values must survive the update.
+  // Paired-client updates omit local ordering fields; omission must preserve the desktop’s own values.
   it('updateUI preserves the manual repo and host-section order when an update omits them', async () => {
     const store = await createStore()
     store.updateUI({
@@ -274,7 +284,6 @@ describe('Store', () => {
     store.flush()
 
     const raw = readPersistedStateJson(dataFile())
-    // Compact payload: no newline-plus-indentation from JSON.stringify(_, null, 2).
     expect(raw).not.toMatch(/\n\s+"/)
     const parsed = JSON.parse(raw) as PersistedState
     expect(parsed.repos).toContainEqual(
@@ -753,9 +762,10 @@ describe('Store', () => {
   it('normalizes default browser zoom UI writes', async () => {
     const store = await createStore()
 
+    // Convert the saved logarithmic zoom to a factor, then snap to Chrome’s 125% preset.
     store.updateUI({ browserDefaultZoomLevel: 1.26 })
 
-    expect(store.getUI().browserDefaultZoomLevel).toBe(1.5)
+    expect(1.2 ** (store.getUI().browserDefaultZoomLevel ?? 0)).toBeCloseTo(1.25)
   })
 
   it('encrypts the Kagi session link on disk and decrypts it on load', async () => {
@@ -772,79 +782,73 @@ describe('Store', () => {
     expect(reloaded.getUI().browserKagiSessionLink).toBe(sessionLink)
   })
 
-  it('durably encrypts SSH PTY consumer ownership for process restart recovery', async () => {
-    const store = await createStore()
-    store.setGitHubCache({ pr: { 'o/r#1': { fetchedAt: 1 } as never }, issue: {} })
-    await store.upsertSshPtyConsumerRecovery({
-      targetId: 'ssh-1',
-      clientInstanceId: 'client-1',
-      serverBuildId: 'relay-build-1',
-      clientGeneration: 3,
-      ownerGeneration: 5,
-      ownerLease: 'secret-owner-lease',
-      outputFlowControl: { version: 1, windowSu: 256 * 1024 }
-    })
+  // Preserve sealed relay-era recovery records for downgrades.
+  const legacyRecovery = {
+    targetId: 'ssh-1',
+    clientInstanceId: 'client-1',
+    serverBuildId: 'relay-build-1',
+    clientGeneration: 3,
+    ownerGeneration: 5,
+    ownerLease: 'secret-owner-lease',
+    outputFlowControl: { version: 1, windowSu: 256 * 1024 }
+  }
+  const sealedOwnerLease = (lease: string) =>
+    Buffer.from(`encrypted:${lease}`, 'utf-8').toString('base64')
 
-    const persisted = readDataFile() as {
-      sshPtyConsumerRecoveries: { ownerLease: string }[]
-    }
-    expect(persisted.sshPtyConsumerRecoveries[0]?.ownerLease).not.toBe('secret-owner-lease')
-    expect(existsSync(join(testState.dir, 'orca-github-cache.json'))).toBe(false)
-
-    const reloaded = await createStore()
-    expect(reloaded.getSshPtyConsumerRecovery('ssh-1')).toEqual({
-      targetId: 'ssh-1',
-      clientInstanceId: 'client-1',
-      serverBuildId: 'relay-build-1',
-      clientGeneration: 3,
-      ownerGeneration: 5,
-      ownerLease: 'secret-owner-lease',
-      outputFlowControl: { version: 1, windowSu: 256 * 1024 }
-    })
-  })
-
-  it('drops decrypted SSH PTY owner leases that exceed the relay protocol bound', async () => {
-    const oversizedLease = 'x'.repeat(513)
+  it('re-seals SSH PTY consumer ownership on every save so a downgrade can recover it', async () => {
     writeDataFile({
       ...getDefaultPersistedState(testState.dir),
       sshPtyConsumerRecoveries: [
-        {
-          targetId: 'ssh-1',
-          clientInstanceId: 'client-1',
-          serverBuildId: 'relay-build-1',
-          clientGeneration: 3,
-          ownerGeneration: 5,
-          ownerLease: Buffer.from(`encrypted:${oversizedLease}`, 'utf-8').toString('base64')
-        }
+        { ...legacyRecovery, ownerLease: sealedOwnerLease(legacyRecovery.ownerLease) }
+      ]
+    })
+    const store = await createStore()
+    store.updateUI({ sidebarWidth: 301 })
+    store.flush()
+
+    expect(readDataFile()).toHaveProperty('sshPtyConsumerRecoveries', [
+      { ...legacyRecovery, ownerLease: sealedOwnerLease(legacyRecovery.ownerLease) }
+    ])
+
+    const reloaded = await createStore()
+    reloaded.updateUI({ sidebarWidth: 302 })
+    reloaded.flush()
+    expect(readDataFile()).toHaveProperty('sshPtyConsumerRecoveries', [
+      { ...legacyRecovery, ownerLease: sealedOwnerLease(legacyRecovery.ownerLease) }
+    ])
+  })
+
+  it('drops decrypted SSH PTY owner leases that exceed the relay protocol bound', async () => {
+    writeDataFile({
+      ...getDefaultPersistedState(testState.dir),
+      sshPtyConsumerRecoveries: [
+        { ...legacyRecovery, ownerLease: sealedOwnerLease('x'.repeat(513)) }
       ]
     })
 
     const store = await createStore()
+    store.updateUI({ sidebarWidth: 301 })
+    store.flush()
 
-    expect(store.getSshPtyConsumerRecovery('ssh-1')).toBeNull()
+    expect(readDataFile()).toHaveProperty('sshPtyConsumerRecoveries', [])
   })
 
   it('removes persisted SSH PTY consumer ownership with its target', async () => {
+    writeDataFile({
+      ...getDefaultPersistedState(testState.dir),
+      sshTargets: [
+        { id: 'ssh-1', label: 'SSH 1', host: 'example.test', port: 22, username: 'orca' }
+      ],
+      sshPtyConsumerRecoveries: [
+        { ...legacyRecovery, ownerLease: sealedOwnerLease(legacyRecovery.ownerLease) }
+      ]
+    })
     const store = await createStore()
-    store.addSshTarget({
-      id: 'ssh-1',
-      label: 'SSH 1',
-      host: 'example.test',
-      port: 22,
-      username: 'orca'
-    })
-    await store.upsertSshPtyConsumerRecovery({
-      targetId: 'ssh-1',
-      clientInstanceId: 'client-1',
-      serverBuildId: 'relay-build-1',
-      clientGeneration: 3,
-      ownerGeneration: 5,
-      ownerLease: 'secret-owner-lease'
-    })
 
     store.removeSshTarget('ssh-1')
+    store.flush()
 
-    expect(store.getSshPtyConsumerRecovery('ssh-1')).toBeNull()
+    expect(readDataFile()).toHaveProperty('sshPtyConsumerRecoveries', [])
   })
 
   it('keeps plaintext Kagi session links readable for migration from older builds', async () => {
@@ -862,39 +866,4 @@ describe('Store', () => {
     const store = await createStore()
     expect(store.getUI().browserKagiSessionLink).toBe(sessionLink)
   })
-
-  it.each(['shutdown', 'freeze', 'maintenance'] as const)(
-    'rejects legacy SSH mutations before changing memory during %s',
-    async (gate) => {
-      const store = await createStore()
-      const recovery = {
-        targetId: 'ssh-1',
-        clientInstanceId: 'client-1',
-        serverBuildId: 'relay-build-1',
-        clientGeneration: 3,
-        ownerGeneration: 5,
-        ownerLease: 'secret-owner-lease'
-      }
-      await store.upsertSshPtyConsumerRecovery(recovery)
-      store.upsertSshRemotePtyLease({ targetId: 'ssh-1', ptyId: 'pty-1', state: 'detached' })
-      await store.flushPendingOrThrowAsync()
-      const closing =
-        gate === 'shutdown'
-          ? store.flushAsync()
-          : gate === 'freeze'
-            ? store.freezeWritesAsync()
-            : store.beginProfileMaintenance()
-      await Promise.all(
-        [
-          store.upsertSshPtyConsumerRecovery({ ...recovery, clientInstanceId: 'refused-owner' }),
-          store.removeSshPtyConsumerRecovery('ssh-1'),
-          store.markSshRemotePtyLeasesAsync('ssh-1', 'terminated'),
-          store.markSshRemotePtyLeasesAttachedAsync('ssh-1', ['pty-1'])
-        ].map((operation) => expect(operation).rejects.toThrow('finalized profile persistence'))
-      )
-      expect(store.getSshPtyConsumerRecovery('ssh-1')).toEqual(recovery)
-      expect(store.getSshRemotePtyLeases('ssh-1')[0]?.state).toBe('detached')
-      await closing
-    }
-  )
 })

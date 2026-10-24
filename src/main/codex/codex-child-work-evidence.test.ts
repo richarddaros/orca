@@ -104,7 +104,6 @@ function harness() {
   return { tracker, store, send, records, byKind, display, log }
 }
 
-/** A child spawned by the parent turn and running its first turn. */
 function runningChild() {
   const run = harness()
   run.send(turn('turn/started', PRIMARY, PARENT_TURN), spawned(), turn('turn/started', CHILD, 'c1'))
@@ -132,8 +131,20 @@ describe('Codex child-work evidence', () => {
       ['thread_id', CHILD],
       ['turn_id', 'c1']
     ])
-    // The host hears the child once.
     expect(log.flat().filter((edge) => edge.type === 'live')).toHaveLength(1)
+  })
+
+  it('keeps usage that arrives before the child is announced, and never credits the parent its own', () => {
+    const { send, byKind } = harness()
+    const usage = (threadId: string, totalTokens: number): CodexBackgroundTaskEvent => ({
+      method: 'thread/tokenUsage/updated',
+      threadId,
+      params: { threadId, tokenUsage: { total: { totalTokens } } }
+    })
+    send(turn('turn/started', PRIMARY, PARENT_TURN), usage(PRIMARY, 9_000), usage(CHILD, 1_500))
+    expect(byKind('agent')).toEqual([])
+    send(spawned(), turn('turn/started', CHILD, 'c1'))
+    expect(byKind('agent')).toEqual([expect.objectContaining({ totalTokens: 1_500 })])
   })
 
   it('makes no record for a child whose turn began before its announcement, until it lands', () => {
@@ -155,7 +166,6 @@ describe('Codex child-work evidence', () => {
     expect(records()).toEqual([
       expect.objectContaining({ membership: 'settled', state: 'done', outcome })
     ])
-    // Today's strip drops the child the moment its turn ends; only the record keeps its ending.
     expect(tracker.state).toBeNull()
   })
 
@@ -190,9 +200,11 @@ describe('Codex child-work evidence', () => {
       expect.objectContaining({ membership: 'settled', state: 'done', outcome: 'unknown' })
     ])
     expect(tracker.state).toBeNull()
-    // The first ending a turn gets stands.
+    // A late turn outcome can refine an unknown thread-close result.
     send(turn('turn/completed', CHILD, 'c1', 'completed'))
-    expect(records()).toEqual([expect.objectContaining({ outcome: 'unknown' })])
+    expect(records()).toEqual([expect.objectContaining({ outcome: 'succeeded' })])
+    send(turn('turn/completed', CHILD, 'c1', 'failed'))
+    expect(records()).toEqual([expect.objectContaining({ outcome: 'succeeded' })])
   })
 
   it('keeps a child working through a retried error and a systemError status: its turn runs on', () => {
@@ -231,7 +243,6 @@ describe('Codex child-work evidence', () => {
         ]
       })
     ])
-    // A late ending of the first run neither ends nor restarts the second.
     send(turn('turn/completed', CHILD, 'c1', 'failed'))
     expect(records()).toEqual([
       expect.objectContaining({
@@ -272,7 +283,7 @@ describe('Codex child-work evidence', () => {
       toolName: 'mcp__github__search_issues',
       input: 'flaky'
     })
-    // The newer call ends first: the child is still running the older one, since it opened.
+    // Reveal the older call again without changing its opening time.
     send(
       item('item/completed', CHILD, 'c1', { type: 'mcpToolCall', id: 'mcp-1', status: 'completed' })
     )
@@ -288,7 +299,6 @@ describe('Codex child-work evidence', () => {
 
   it('names a unified-exec shell as the open call until its process exits', () => {
     const { send, byKind } = runningChild()
-    // Codex runs every agent shell through unified exec, not only the ones that outlive a turn.
     send(
       item(
         'item/started',
@@ -357,7 +367,6 @@ describe('Codex child-work evidence', () => {
       lastMessage: 'Two tests flake on CI',
       totalTokens: 4_200
     })
-    // A new run has said nothing yet.
     send(turn('turn/started', CHILD, 'c2'))
     expect(byKind('agent')[0]).not.toHaveProperty('lastMessage')
   })
@@ -390,7 +399,6 @@ describe('Codex child-work evidence', () => {
     send(status({ type: 'active', activeFlags: ['waitingOnUserInput'] }))
     send(turn('turn/completed', CHILD, 'c1'))
     send(turn('turn/started', CHILD, 'c2'))
-    // The wait ended with the turn that asked.
     expect(byKind('agent')[0]?.state).toBe('working')
   })
 
@@ -405,7 +413,6 @@ describe('Codex child-work evidence', () => {
       )
     )
     const [agent] = byKind('agent')
-    // While the child's turn runs, the command is also the tool it has open.
     expect(agent?.operation).toMatchObject({ toolName: 'Bash', input: 'npm run dev' })
     expect(byKind('command')).toEqual([
       expect.objectContaining({
@@ -478,7 +485,6 @@ describe('Codex child-work evidence', () => {
     expect(byKind('command')).toEqual([])
     expect(display(agent!.childWorkId)).toBe('done')
     expect(tracker.state).toBeNull()
-    // The exit Codex could not deliver starts nothing if it ever arrives.
     send(
       item(
         'item/completed',
@@ -533,11 +539,10 @@ describe('Codex child-work evidence', () => {
     expect(byKind('command')).toEqual([expect.objectContaining({ membership: 'live' })])
   })
 
-  it('leaves no record behind a finished shell, so none displaces a finished child', () => {
+  it('leaves no record behind a finished shell', () => {
     const { send, byKind, records, log } = runningChild()
     send(turn('turn/completed', CHILD, 'c1'))
     const before = log.length
-    // Codex runs every shell, however short, the way it runs one left running.
     for (let index = 0; index < 40; index += 1) {
       const id = `exec-${index}`
       send(
@@ -559,7 +564,6 @@ describe('Codex child-work evidence', () => {
     expect(records()).toEqual([
       expect.objectContaining({ kind: 'agent', membership: 'settled', outcome: 'succeeded' })
     ])
-    // Raw status evidence keeps every start and exit, including foreground processes.
     expect(
       log
         .slice(before)

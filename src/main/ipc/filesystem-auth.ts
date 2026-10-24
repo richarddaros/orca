@@ -1,6 +1,6 @@
 import { resolve, dirname, basename } from 'node:path'
-import { realpath } from 'node:fs/promises'
-import type { Store } from '../persistence'
+import type { RuntimeStore } from '../runtime/runtime-store-contract'
+import { lstat, realpath } from 'node:fs/promises'
 import { PATH_OUTSIDE_ALLOWED_DIRECTORIES } from '../../shared/local-file-access'
 import { getAllowedRoots } from './filesystem-allowed-roots'
 import { isDescendantOrEqual, isENOENT, normalizeExistingPath } from './filesystem-path-containment'
@@ -10,18 +10,12 @@ import {
   isRegisteredWorktreePath
 } from './registered-worktree-roots-cache'
 
-// Compatibility exports for runtime command modules that historically imported these seams from
-// filesystem-auth. The implementations remain owned by their focused modules.
-export { invalidateAuthorizedRootsCache } from './registered-worktree-roots-cache'
-export { invalidateAuthorizedRootsCacheForRepo } from './registered-worktree-roots-scoped-invalidation'
-export { isENOENT } from './filesystem-path-containment'
-
 export const PATH_ACCESS_DENIED_MESSAGE = `${PATH_OUTSIDE_ALLOWED_DIRECTORIES}. If this blocks a legitimate workflow, please file a GitHub issue.`
-/** One allowed-root list shared by every check in a single authorization, built on first use. */
+/** Lazily share allowed roots across every check in one authorization. */
 type AllowedRootsSnapshot = { get: () => readonly string[] }
 
 function createAllowedRootsSnapshot(
-  store: Store,
+  store: RuntimeStore,
   extraRoots: readonly string[] = []
 ): AllowedRootsSnapshot {
   let roots: readonly string[] | undefined
@@ -30,7 +24,7 @@ function createAllowedRootsSnapshot(
 
 export function isPathAllowed(
   targetPath: string,
-  store: Store,
+  store: RuntimeStore,
   allowedRoots?: AllowedRootsSnapshot
 ): boolean {
   const resolvedTarget = resolve(targetPath)
@@ -40,22 +34,19 @@ export function isPathAllowed(
 }
 
 export type ResolveAuthorizedPathOptions = {
-  /**
-   * Canonicalize the parent but preserve the leaf so delete/rename target the symlink itself, not its destination (which may live outside allowed roots).
-   */
+  /** Canonicalize parents but preserve the leaf so delete/rename act on a symlink, not its destination. */
   preserveSymlink?: boolean
-  /** Roots only the desktop window may use (never runtime RPC), checked like any other root. */
+  /** Roots one caller owns outside the store (desktop: floating workspace; runtime: chat scratch). */
   extraRoots?: readonly string[]
 }
 
 export async function resolveAuthorizedPath(
   targetPath: string,
-  store: Store,
+  store: RuntimeStore,
   options: ResolveAuthorizedPathOptions = {}
 ): Promise<string> {
   const resolvedTarget = resolve(targetPath)
-  // Why: the roots depend only on store state, not on the candidate path, so one snapshot serves
-  // every authorization below; each candidate is still checked against it in full.
+  // Reuse store-derived roots while fully checking each candidate.
   const allowedRoots = createAllowedRootsSnapshot(store, options.extraRoots)
   if (!(await isPathAllowedIncludingRegisteredWorktrees(resolvedTarget, store, { allowedRoots }))) {
     throw new Error(PATH_ACCESS_DENIED_MESSAGE)
@@ -85,7 +76,7 @@ export async function resolveAuthorizedPath(
   }
 
   try {
-    // Why: Windows/WSL realpath can return UNC-shaped paths; re-resolve to compare against this module's allow-list roots.
+    // Normalize Windows/WSL realpath output before comparing allow-list roots.
     const realTarget = resolve(await realpath(resolvedTarget))
     if (
       !(await isPathAllowedIncludingRegisteredWorktrees(realTarget, store, {
@@ -106,7 +97,7 @@ export async function resolveAuthorizedPath(
 
 async function resolveAuthorizedMissingPath(
   resolvedTarget: string,
-  store: Store,
+  store: RuntimeStore,
   allowedRoots: AllowedRootsSnapshot
 ): Promise<string> {
   let existingAncestor = resolvedTarget
@@ -129,20 +120,35 @@ async function resolveAuthorizedMissingPath(
       if (!isENOENT(error)) {
         throw error
       }
+      if (await isSymlink(existingAncestor)) {
+        // Writes create dangling-link targets that realpath cannot authorize.
+        throw new Error(PATH_ACCESS_DENIED_MESSAGE)
+      }
       const parent = dirname(existingAncestor)
       if (parent === existingAncestor) {
         throw error
       }
-      // Why: create/copy make missing parents after auth; canonicalize nearest existing ancestor to catch symlink escapes without rejecting nested paths.
+      // Canonicalize the nearest existing ancestor to catch symlink escapes through missing parents.
       missingSegments.unshift(basename(existingAncestor))
       existingAncestor = parent
     }
   }
 }
 
+async function isSymlink(path: string): Promise<boolean> {
+  try {
+    return (await lstat(path)).isSymbolicLink()
+  } catch (error) {
+    if (isENOENT(error)) {
+      return false
+    }
+    throw error
+  }
+}
+
 async function isPathAllowedIncludingRegisteredWorktrees(
   targetPath: string,
-  store: Store,
+  store: RuntimeStore,
   options: { canonicalSourcePath?: string; allowedRoots?: AllowedRootsSnapshot } = {}
 ): Promise<boolean> {
   if (isPathAllowed(targetPath, store, options.allowedRoots)) {
@@ -172,7 +178,7 @@ async function isPathAllowedIncludingRegisteredWorktrees(
 
   await ensureAuthorizedRootsCache(store)
 
-  // Why: linked worktrees are already git-trusted; reuse the cached root index so reads don't spawn `git worktree list` each time.
+  // Reuse git-trusted registered roots without spawning git worktree list on each read.
   return (
     isRegisteredWorktreePath(targetPath, store) ||
     (await isPathAllowedByCanonicalRegisteredRoot(targetPath, options.canonicalSourcePath, store))
@@ -182,7 +188,7 @@ async function isPathAllowedIncludingRegisteredWorktrees(
 async function isPathAllowedByCanonicalAllowedRoot(
   targetPath: string,
   sourcePath: string | undefined,
-  store: Store,
+  store: RuntimeStore,
   allowedRoots?: AllowedRootsSnapshot
 ): Promise<boolean> {
   if (!sourcePath) {
@@ -193,7 +199,7 @@ async function isPathAllowedByCanonicalAllowedRoot(
     if (!isDescendantOrEqual(sourcePath, resolvedRoot)) {
       continue
     }
-    // Why: macOS resolves /var→/private/var; canonicalize only the matched root, not the whole repo set.
+    // Resolve macOS /var symlinks only for the matching root, not every repo.
     const canonicalRoot = await normalizeExistingPath(resolvedRoot)
     if (isDescendantOrEqual(targetPath, canonicalRoot)) {
       return true

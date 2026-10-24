@@ -4,10 +4,6 @@ import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Store } from '../persistence'
 import type * as RepoWorktrees from '../repo-worktrees'
-import {
-  registerSshFilesystemProvider,
-  unregisterSshFilesystemProvider
-} from '../providers/ssh-filesystem-dispatch'
 import { invalidateAuthorizedRootsCache } from './registered-worktree-roots-cache'
 
 type Handler = (event: unknown, args: unknown) => Promise<unknown>
@@ -127,7 +123,6 @@ describe('renaming a document the user opened outside every project', () => {
     expect(await readdir(docFolder)).toEqual(['note.md'])
   })
 
-  // Why each destination is undone: the Undo declares the moved file, so it must come back from anywhere.
   it('moves it into another outside folder, and Undo brings it back', async () => {
     await mkdir(join(base, 'other'))
     const moved = join(base, 'other', 'note.md')
@@ -302,11 +297,9 @@ describe('a project file opened by its full path', () => {
 })
 
 describe('an SSH rename', () => {
-  it('goes to the remote host as before, whatever access it declares', async () => {
-    const renameNoClobber = vi.fn().mockResolvedValue(undefined)
-    registerSshFilesystemProvider('ssh-1', { renameNoClobber } as never)
-    try {
-      await call('fs:rename', {
+  it('is refused without touching the local document, whatever access it declares', async () => {
+    await expect(
+      call('fs:rename', {
         oldPath: note,
         newPath: join(base, 'note.md'),
         access: documentFolder(note),
@@ -314,11 +307,8 @@ describe('an SSH rename', () => {
         expectedSshTargetId: 'ssh-1',
         expectedSshConnectionGeneration: 0
       })
-    } finally {
-      unregisterSshFilesystemProvider('ssh-1')
-    }
+    ).rejects.toThrow('Remote connection dropped')
 
-    expect(renameNoClobber).toHaveBeenCalledWith(note, join(base, 'note.md'))
     expect(await readdir(docFolder)).toEqual(['note.md'])
   })
 })

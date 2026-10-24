@@ -1,4 +1,5 @@
 import type { TerminalCreateOptions } from './runtime-terminal-contracts'
+import { ownerSurfacing } from './orca-runtime-core'
 import type { SpawnIntent } from '../../shared/host-spawn-admission'
 
 export type { TerminalCreateOptions }
@@ -13,6 +14,7 @@ export { makePaneKey } from '../../shared/stable-pane-id'
 export { randomUUID } from 'node:crypto'
 export {
   admitStablePaneAdoption,
+  materializedStablePaneReply,
   allocateTerminalPaneIdentity
 } from './runtime-terminal-pane-identity'
 export {
@@ -31,7 +33,10 @@ export { normalizeColorQueryReplyColors } from '../../shared/pty-owner-color-que
 export type { RuntimePtyController } from './runtime-pty-controller-contract'
 export { getRuntimeDesktopSurface } from './runtime-desktop-surface'
 export { newTabIn } from './runtime-terminal-spawn-placement'
+import type { PaneStartArgs } from './runtime-pane-admission'
 export { spawnInAdmittedPane } from './runtime-pane-admission'
+/** Layout-owner build: what a create's spawn reports its start status to. */
+export type PaneStartArgsOf = (opts: TerminalCreateOptions) => PaneStartArgs
 export type { IpcMainEvent } from 'electron'
 
 // Why initiallyHidden: no renderer pane exists yet, so main must answer startup queries — Muse
@@ -40,6 +45,15 @@ export const BACKGROUND_TERMINAL_SPAWN_FLAGS = {
   initiallyHidden: true,
   persistHostSessionBinding: true
 } as const
+
+/** The PTY's shell inputs: a requested shell, and an agent launch's runtime fact. */
+export const spawnShellInputs = ({
+  shellOverride,
+  launchRuntime
+}: Pick<TerminalCreateOptions, 'shellOverride' | 'launchRuntime'>) => ({
+  ...(shellOverride ? { shellOverride } : {}),
+  ...(launchRuntime ? { launchRuntime } : {})
+})
 
 /** Caller-scoped spawn fields: abort when the caller disconnects; never wake a slept worktree;
  *  the caller's declared fork intent, which the host's gate validates. */
@@ -50,5 +64,14 @@ export function callerSpawnScope(
     ...(opts.signal ? { signal: opts.signal } : {}),
     ...(opts.refuseSleptWorktree ? { refuseSleptWorktree: true } : {}),
     ...(opts.spawnIntent ? { spawnIntent: opts.spawnIntent } : {})
+  }
+}
+
+export function terminalRevealViewerOptions(
+  opts: Pick<TerminalCreateOptions, 'surfaceOwner' | 'agentLaunchViewer'>
+) {
+  return {
+    ...ownerSurfacing(opts.surfaceOwner !== false),
+    ...(opts.agentLaunchViewer ? { agentLaunchViewer: opts.agentLaunchViewer() } : {})
   }
 }

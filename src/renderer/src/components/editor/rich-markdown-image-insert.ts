@@ -3,7 +3,7 @@ import { toast } from 'sonner'
 import { dirname, basename } from '@/lib/path'
 import { getConnectionId } from '@/lib/connection-context'
 import { useAppStore } from '@/store'
-import { importExternalPathsToRuntime } from '@/runtime/runtime-file-client'
+import { importExternalPathsToRuntime } from '@/runtime/runtime-file-import-client'
 import { getEditorFileOperationContext } from '@/lib/editor-file-operation-owner'
 import { editorTabDocumentFolderAccess } from '@/lib/local-file-access'
 import { requireRuntimeTargetForFileOwner } from '@/lib/file-owner-runtime-target'
@@ -15,6 +15,7 @@ import { buildRichMarkdownImageInsertContent } from './rich-markdown-image-inser
 import { showRichMarkdownImageInsertionCanceled } from './rich-markdown-image-insertion-feedback'
 import type { RichMarkdownImageInsertionRange } from './rich-markdown-image-insertion-target'
 import { richMarkdownClipboardInsertionOrderKey } from './rich-markdown-clipboard-insertion-order'
+import { selectFolderWorkspaces, selectWorktreesByRepo } from '@/store/workspace-record-selectors'
 
 export type RichMarkdownImageInsertArgs = {
   editor: Editor
@@ -140,11 +141,11 @@ function getWorktreePath(worktreeId: string | null): string | null {
   const parsedWorkspaceKey = parseWorkspaceKey(worktreeId)
   if (parsedWorkspaceKey?.type === 'folder') {
     return (
-      state.folderWorkspaces.find(
+      selectFolderWorkspaces(state).find(
         (workspace) => workspace.id === parsedWorkspaceKey.folderWorkspaceId
       )?.folderPath ?? null
     )
   }
-  const worktrees = Object.values(state.worktreesByRepo ?? {}).flat()
+  const worktrees = Object.values(selectWorktreesByRepo(state) ?? {}).flat()
   return worktrees.find((worktree) => worktree.id === worktreeId)?.path ?? null
 }

@@ -1,4 +1,5 @@
 import type { PermissionResult } from '@anthropic-ai/claude-agent-sdk'
+import type { AgentChildWorkStopAcknowledgement } from '../../shared/agent-child-work-stop-targets'
 import type { ClaudePromptClaim } from './claude-structured-prompt-replies'
 import { ClaudeControlRequestError } from './claude-stream-json-connection'
 import { ClaudeControlRequestTimeoutError } from './claude-agent-sdk-control-requests'
@@ -14,22 +15,14 @@ export function supportsClaudeQueuedInterruptCancellation(session: ClaudeSession
 
 export type ClaudeTurnCancellationGuard = () => boolean
 
-/**
- * Interrupt the running turn, then make sure no queued async user message survives to spawn a
- * later unexpected turn. On a CLI advertising `interrupt_cancel_queued_v1` one round trip
- * cancels the queue alongside the abort; otherwise the interrupt receipt lists `still_queued`
- * uuids, and each is withdrawn best-effort with `cancel_async_message`. Either way, every send
- * the CLI confirms it withdrew settles as cancelled. Older CLIs resolve no receipt, so there is
- * nothing to sweep.
- */
+/** Cancel queued sends atomically when supported; otherwise withdraw UUIDs from the interrupt receipt. */
 export async function cancelClaudeTurn(
   session: ClaudeSession,
   timeoutMs: number | undefined,
   isCurrent: ClaudeTurnCancellationGuard = () => true,
   onDispatchSettledLate?: ClaudeLateDispatchSettlement
 ): Promise<{ cancelled: boolean }> {
-  // The SDK interrupt is session-scoped. Re-check the caller's turn/fence
-  // immediately before issuing it so a delayed request cannot stop a later turn.
+  // Interrupt is session-scoped; recheck ownership immediately before sending.
   if (!isCurrent()) {
     return { cancelled: false }
   }
@@ -52,8 +45,7 @@ export async function cancelClaudeTurn(
     }
     return { cancelled: true }
   } catch (error) {
-    // The CLI refused. Any other error leaves the interrupt's effect unknown. Either way the Stop
-    // ends the child next, so its Stop event stands.
+    // Only an explicit refusal proves the interrupt had no effect.
     if (error instanceof ClaudeControlRequestError) {
       return { cancelled: false }
     }
@@ -61,18 +53,16 @@ export async function cancelClaudeTurn(
   }
 }
 
-/** Stops each task the host named. An acknowledged stop ends the task's record: the CLI answers
- *  success for a task it no longer knows without sending that task any frame. */
+/** Acknowledgements are provisional: the CLI also reports success for unknown tasks. */
 export async function stopClaudeBackgroundTasks(
   session: ClaudeSession,
   timeoutMs: number | undefined,
   isCurrent: ClaudeTurnCancellationGuard,
-  taskIds: readonly string[]
+  taskIds: readonly string[],
+  acknowledge: (acknowledgement: AgentChildWorkStopAcknowledgement) => void = () => {}
 ): Promise<{ cancelled: boolean }> {
   let cancelled = false
-  // A failed request for one task still leaves the others to stop; it is reported after them. A
-  // timeout ends the loop: a CLI that is not answering would make each id wait out its own
-  // deadline while the session's other actions queue behind this one.
+  // Continue after individual failures; a timeout aborts to avoid one deadline per task.
   let failure: { error: unknown } | undefined
   for (const taskId of taskIds) {
     if (!isCurrent()) {
@@ -80,8 +70,8 @@ export async function stopClaudeBackgroundTasks(
     }
     try {
       await session.connection.stopTask(taskId, { timeoutMs })
-      session.childWork.stopAcknowledged(taskId)
       cancelled = true
+      acknowledge({ taskId })
     } catch (error) {
       if (error instanceof ClaudeControlRequestTimeoutError) {
         throw error
@@ -97,8 +87,6 @@ export async function stopClaudeBackgroundTasks(
   return { cancelled }
 }
 
-/** Stops the tasks while `session` is still the one the host asked about, then publishes its child
- *  work so the host's records follow every acknowledged stop. */
 export async function stopCurrentClaudeBackgroundTasks(input: {
   sessions: ReadonlyMap<string, ClaudeSession>
   session: ClaudeSession
@@ -106,7 +94,7 @@ export async function stopCurrentClaudeBackgroundTasks(input: {
   fence: number
   taskIds: readonly string[]
   timeoutMs: number | undefined
-  publishChildWork: (session: ClaudeSession) => void
+  acknowledge?: (acknowledgement: AgentChildWorkStopAcknowledgement) => void
 }): Promise<{ cancelled: boolean }> {
   const { sessions, session, sessionId, fence } = input
   const acquisitionGeneration = session.acquisitionGeneration
@@ -114,13 +102,13 @@ export async function stopCurrentClaudeBackgroundTasks(input: {
     sessions.get(sessionId) === session &&
     session.fence === fence &&
     session.acquisitionGeneration === acquisitionGeneration
-  try {
-    return await stopClaudeBackgroundTasks(session, input.timeoutMs, isCurrent, input.taskIds)
-  } finally {
-    if (isCurrent()) {
-      input.publishChildWork(session)
-    }
-  }
+  return stopClaudeBackgroundTasks(
+    session,
+    input.timeoutMs,
+    isCurrent,
+    input.taskIds,
+    input.acknowledge
+  )
 }
 
 export async function answerClaudePrompt(

@@ -72,10 +72,12 @@ export abstract class RateLimitServiceFullCyclePreparation extends RateLimitServ
     this.rememberClaudeAuthSnapshot(claudeAuthPreparation, claudeGeneration, claudeTarget)
     const claudeProvenance = claudeAuthPreparation?.provenance ?? 'system'
     const codexTarget = this.codexFetchTarget
+    // Why: capture before the resolver await; a reset during it bumps the generation and this cycle's result is stale.
+    const codexGeneration = this.codexFetchGeneration
     const previousState = this.state
     // Why: a skipped Codex poll must not stop the other providers' cycle, so gate
     // only the Codex slot instead of returning early (#STA-4422).
-    const codexHome = this.resolveCodexHome(codexTarget)
+    const codexHome = await this.resolveCodexHome(codexTarget)
     const codexFetchGated = codexHome.skip
     const codexHomePath = codexHome.homePath
     const codexStateBeforeFetch =
@@ -83,7 +85,6 @@ export abstract class RateLimitServiceFullCyclePreparation extends RateLimitServ
     const codexProvenance = codexFetchGated
       ? null
       : this.getCodexProvenance(codexTarget, codexHomePath)
-    const codexGeneration = this.codexFetchGeneration
     const openCodeGoConfig = this.resolveOpenCodeGoConfig()
     const cookie = openCodeGoConfig.sessionCookie
     const workspaceIdOverride = openCodeGoConfig.workspaceIdOverride
@@ -210,7 +211,7 @@ export abstract class RateLimitServiceFullCyclePreparation extends RateLimitServ
       (reason) => ({ status: 'rejected', reason }) as const
     )
 
-    // Why: skip automated Claude fetches while a Retry-After window is open or a live session feed is fresher than the OAuth poll would be.
+    // Why: automated checks must honor the endpoint's Retry-After even when live display is available.
     const claudeFetchGated =
       !options?.force && this.shouldSkipAutomatedClaudeFetch(previousState.claude)
 

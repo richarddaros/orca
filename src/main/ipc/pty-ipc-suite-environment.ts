@@ -51,7 +51,7 @@ import {
   LocalPtyProvider,
   _resetLocalPtyProviderStateForTest
 } from '../providers/local-pty-provider'
-import { setLocalPtyProvider } from './pty'
+import { setLocalPtyProvider } from './pty/provider/registry'
 import { _resetHiddenRendererPtyDeliveryGateForTest } from './pty-hidden-delivery-gate'
 import { __resetShellStartupEnvCache } from '../pty/shell-startup-env'
 import { _resetWslCachesForTests } from '../wsl'
@@ -78,7 +78,7 @@ export type PtyIpcTestMainWindow = {
 }
 
 export type PtyIpcSuiteEnvironment = {
-  handlers: Map<string, (event: unknown, args: unknown) => unknown>
+  handlers: Map<string, (event: unknown, ...args: unknown[]) => unknown>
   mainWindow: PtyIpcTestMainWindow
   mainWindowIpcEvent: { sender: PtyIpcTestWebContents }
   foreignWindowIpcEvent: { sender: PtyIpcTestWebContents }
@@ -86,7 +86,7 @@ export type PtyIpcSuiteEnvironment = {
 
 /** Registers the shared beforeEach/afterEach every pty IPC suite file relies on. */
 export function createPtyIpcSuiteEnvironment(): PtyIpcSuiteEnvironment {
-  const handlers = new Map<string, (_event: unknown, args: unknown) => unknown>()
+  const handlers = new Map<string, (_event: unknown, ...args: unknown[]) => unknown>()
   const mainWindow = {
     isDestroyed: () => false,
     isFocused: () => true,

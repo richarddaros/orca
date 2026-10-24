@@ -23,6 +23,9 @@ export const CLI_MAIN_ENTRY_NAMES = [
   'gitlab/project-ref-parser',
   'orca-profiles/profile-index-store',
   'claude-accounts/keychain',
+  'skills/bundled-skill-install/cli-entry',
+  'macos-tree-clone',
+  'orcad/orcad-stale-lock-reclaim',
   ...[
     'access',
     'active-location',
@@ -62,7 +65,9 @@ const WORKER_THREAD_ENTRY_NAMES = [
   'foreign-sqlite-reader-entry',
   'main-thread-hang-watchdog-entry',
   'port-scan-command-worker-entry',
+  'worker-thread-child-process-entry',
   'usage-scan-worker-entry',
+  'workspace-space-scan-worker-entry',
   'claude-profile-setup-worker-entry',
   'profile-state-backup-worker-entry',
   'profile-state-writer-worker-entry'
