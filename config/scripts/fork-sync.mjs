@@ -243,7 +243,7 @@ function aheadBehind(root, range) {
   return { ahead: Number(ahead), behind: Number(behind) }
 }
 
-function unmergedPaths(root) {
+export function unmergedPaths(root) {
   const output = git(root, ['diff', '--name-only', '--diff-filter=U'])
   return output.length === 0 ? [] : output.split('\n')
 }
@@ -278,7 +278,12 @@ function status(root) {
   }
 }
 
-function resolveAutomatically(worktree, plan) {
+/**
+ * @param {string} worktree - checkout with a merge in progress
+ * @param {{ lockfile: boolean, forkBlocks: string[], manual: string[] }} plan - from classifyConflicts
+ * @returns {string[]} conflicts left for a person
+ */
+export function resolveAutomatically(worktree, plan) {
   if (plan.lockfile) {
     git(worktree, ['checkout', '--theirs', '--', LOCKFILE])
     const workspace = readFileSync(join(worktree, 'pnpm-workspace.yaml'), 'utf8')

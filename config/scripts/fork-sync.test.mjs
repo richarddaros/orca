@@ -1,4 +1,8 @@
-import { describe, expect, it } from 'vitest'
+import { spawnSync } from 'node:child_process'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { afterEach, describe, expect, it } from 'vitest'
 import {
   classifyConflicts,
   forkTestFiles,
@@ -7,8 +11,10 @@ import {
   readPatchedDependencies,
   reapplyForkBlock,
   rehashLockfile,
+  resolveAutomatically,
   syncBranchName,
-  toolchainProblems
+  toolchainProblems,
+  unmergedPaths
 } from './fork-sync.mjs'
 
 const START = '<!-- fork:richarddaros/orca:start -->'
@@ -131,5 +137,83 @@ describe('fork sync', () => {
     })
     expect(problems).toHaveLength(2)
     expect(problems[1]).toContain('corepack pnpm')
+  })
+})
+
+describe('fork sync conflict resolution', () => {
+  const repos = []
+  afterEach(() => {
+    for (const repo of repos.splice(0)) {
+      rmSync(repo, { recursive: true, force: true })
+    }
+  })
+
+  function gitIn(repo, ...args) {
+    const result = spawnSync(
+      'git',
+      ['-c', 'user.name=Fork Test', '-c', 'user.email=fork-test@example.com', ...args],
+      { cwd: repo, encoding: 'utf8' }
+    )
+    return result.status
+  }
+
+  function writeTree(repo, files) {
+    for (const [path, text] of Object.entries(files)) {
+      mkdirSync(join(repo, path, '..'), { recursive: true })
+      writeFileSync(join(repo, path), text)
+    }
+  }
+
+  function lockWith(hash, extra = '') {
+    return `lockfileVersion: '9.0'\n\npatchedDependencies:\n  node-pty@1.1.0: ${hash}\n\nimporters:\n  .:\n    dependencies:\n      node-pty:\n        version: 1.1.0(patch_hash=${hash})\n${extra}`
+  }
+
+  it('resolves the lockfile and AGENTS.md conflicts of an upstream merge', () => {
+    const repo = mkdtempSync(join(tmpdir(), 'fork-sync-'))
+    repos.push(repo)
+    const patchPath = 'config/patches/node-pty@1.1.0.patch'
+    const basePatch = 'one\ntwo\nthree\nfour\nfive\n'
+    const block = `${START}\n\n# Fork\n\n${END}\n`
+    gitIn(repo, 'init', '-q', '-b', 'main')
+    writeTree(repo, {
+      'pnpm-workspace.yaml': `patchedDependencies:\n  node-pty@1.1.0: ${patchPath}\n`,
+      [patchPath]: basePatch,
+      'pnpm-lock.yaml': lockWith(patchHash(basePatch)),
+      'AGENTS.md': '# Upstream\n'
+    })
+    gitIn(repo, 'add', '-A')
+    gitIn(repo, 'commit', '-q', '-m', 'base')
+
+    gitIn(repo, 'switch', '-q', '-c', 'fork')
+    const forkPatch = basePatch.replace('five', 'five fork')
+    writeTree(repo, {
+      [patchPath]: forkPatch,
+      'pnpm-lock.yaml': lockWith(patchHash(forkPatch)),
+      'AGENTS.md': `# Upstream\n\n${block}`
+    })
+    gitIn(repo, 'commit', '-q', '-am', 'fork')
+
+    gitIn(repo, 'switch', '-q', 'main')
+    const upstreamPatch = basePatch.replace('one', 'one upstream')
+    writeTree(repo, {
+      [patchPath]: upstreamPatch,
+      'pnpm-lock.yaml': lockWith(patchHash(upstreamPatch), '  upstream-only: {}\n'),
+      'AGENTS.md': '# Upstream v2\n'
+    })
+    gitIn(repo, 'commit', '-q', '-am', 'upstream')
+
+    gitIn(repo, 'switch', '-q', 'fork')
+    expect(gitIn(repo, 'merge', '--no-ff', '--no-commit', 'main')).not.toBe(0)
+    expect(unmergedPaths(repo).toSorted()).toEqual(['AGENTS.md', 'pnpm-lock.yaml'])
+
+    expect(resolveAutomatically(repo, classifyConflicts(unmergedPaths(repo)))).toEqual([])
+
+    expect(unmergedPaths(repo)).toEqual([])
+    const mergedPatch = readFileSync(join(repo, patchPath), 'utf8')
+    expect(mergedPatch).toBe('one upstream\ntwo\nthree\nfour\nfive fork\n')
+    expect(readFileSync(join(repo, 'pnpm-lock.yaml'), 'utf8')).toBe(
+      lockWith(patchHash(mergedPatch), '  upstream-only: {}\n')
+    )
+    expect(readFileSync(join(repo, 'AGENTS.md'), 'utf8')).toBe(`# Upstream v2\n\n${block}`)
   })
 })
