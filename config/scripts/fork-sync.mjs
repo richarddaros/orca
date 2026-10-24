@@ -279,6 +279,32 @@ function status(root) {
 }
 
 /**
+ * Rewrites the lockfile's patch hashes to match the patch files on disk.
+ *
+ * @param {string} worktree - checkout whose patch files are resolved
+ * @returns {boolean} whether pnpm-lock.yaml changed
+ */
+export function refreshLockfileHashes(worktree) {
+  const workspace = readFileSync(join(worktree, 'pnpm-workspace.yaml'), 'utf8')
+  const hashes = new Map()
+  for (const [key, file] of readPatchedDependencies(workspace)) {
+    const path = join(worktree, file)
+    if (existsSync(path)) {
+      hashes.set(key, patchHash(readFileSync(path, 'utf8')))
+    }
+  }
+  const lockPath = join(worktree, LOCKFILE)
+  const locked = readFileSync(lockPath, 'utf8')
+  const rehashed = rehashLockfile(locked, hashes)
+  if (rehashed === locked) {
+    return false
+  }
+  writeFileSync(lockPath, rehashed)
+  git(worktree, ['add', '--', LOCKFILE])
+  return true
+}
+
+/**
  * @param {string} worktree - checkout with a merge in progress
  * @param {{ lockfile: boolean, forkBlocks: string[], manual: string[] }} plan - from classifyConflicts
  * @returns {string[]} conflicts left for a person
@@ -286,21 +312,19 @@ function status(root) {
 export function resolveAutomatically(worktree, plan) {
   if (plan.lockfile) {
     git(worktree, ['checkout', '--theirs', '--', LOCKFILE])
-    const workspace = readFileSync(join(worktree, 'pnpm-workspace.yaml'), 'utf8')
-    const hashes = new Map(
-      [...readPatchedDependencies(workspace)].map(([key, file]) => [
-        key,
-        patchHash(readFileSync(join(worktree, file), 'utf8'))
-      ])
-    )
-    const lockPath = join(worktree, LOCKFILE)
-    writeFileSync(lockPath, rehashLockfile(readFileSync(lockPath, 'utf8'), hashes))
+    refreshLockfileHashes(worktree)
     git(worktree, ['add', '--', LOCKFILE])
   }
   for (const file of plan.forkBlocks) {
-    const ours = git(worktree, ['show', `:2:${file}`], { raw: true })
-    const theirs = git(worktree, ['show', `:3:${file}`], { raw: true })
-    const merged = reapplyForkBlock(theirs, ours)
+    // Why allowFailure: a modify/delete conflict has no stage for one side.
+    const stage = (n) =>
+      run('git', ['show', `:${n}:${file}`], { cwd: worktree, allowFailure: true, raw: true })
+    const ours = stage(2)
+    const theirs = stage(3)
+    const merged =
+      ours.status === 0 && theirs.status === 0
+        ? reapplyForkBlock(theirs.stdout, ours.stdout)
+        : undefined
     if (merged === undefined) {
       plan.manual.push(file)
       continue
@@ -309,6 +333,20 @@ export function resolveAutomatically(worktree, plan) {
     git(worktree, ['add', '--', file])
   }
   return plan.manual
+}
+
+/**
+ * @param {string} logText - `git log --format='%h %s'` of upstream commits that touched fork files
+ * @returns {string[]} Markdown list; issue refs become code so they never link to fork issues
+ */
+export function formatUpstreamChanges(logText) {
+  return logText
+    .split('\n')
+    .filter(Boolean)
+    .map((line) => {
+      const [sha, ...subject] = line.split(' ')
+      return `- \`${sha}\` ${subject.join(' ').replace(/#(\d+)/g, '`#$1`')}`
+    })
 }
 
 function startSync(root) {
@@ -341,31 +379,41 @@ function startSync(root) {
   return worktree
 }
 
-function finishMerge(worktree) {
+function mergeInProgress(worktree) {
+  return (
+    run('git', ['rev-parse', '-q', '--verify', 'MERGE_HEAD'], { cwd: worktree, allowFailure: true })
+      .status === 0
+  )
+}
+
+function assertSyncBranch(root) {
+  const branch = git(root, ['branch', '--show-current'])
+  if (!branch.startsWith(SYNC_BRANCH_PREFIX)) {
+    throw new Error(
+      `--continue runs inside a ${SYNC_BRANCH_PREFIX}* worktree, not ${branch || 'a detached HEAD'}.`
+    )
+  }
+}
+
+/**
+ * @param {string} worktree - sync worktree with the merge in progress or already committed
+ * @returns {string[]} conflicts left for a person; empty once the merge is committed
+ */
+export function finishMerge(worktree) {
   const manual = resolveAutomatically(worktree, classifyConflicts(unmergedPaths(worktree)))
+  if (manual.length > 0 || !mergeInProgress(worktree)) {
+    return manual
+  }
+  // Why here too: a patch resolved by hand after the first run changes its hash.
+  refreshLockfileHashes(worktree)
   // Why before the commit: the pre-commit hook runs lint-staged from node_modules.
   pnpm(worktree, ['install', '--frozen-lockfile'])
-  if (manual.length > 0) {
-    console.error(
-      `\nResolve these conflicts in ${worktree}, then run \`corepack pnpm fork:sync --continue\` there:`
-    )
-    for (const path of manual) {
-      console.error(`  ${path}`)
-    }
-    process.exitCode = 2
-    return false
-  }
-  if (existsSync(join(git(worktree, ['rev-parse', '--absolute-git-dir']), 'MERGE_HEAD'))) {
-    git(worktree, ['commit', '-m', SYNC_COMMIT_MESSAGE], { inherit: true })
-  }
-  return true
+  git(worktree, ['commit', '-m', SYNC_COMMIT_MESSAGE], { inherit: true })
+  return []
 }
 
 function publish(worktree, { merge }) {
   const branch = git(worktree, ['branch', '--show-current'])
-  if (!branch.startsWith(SYNC_BRANCH_PREFIX)) {
-    throw new Error(`--continue runs inside a ${SYNC_BRANCH_PREFIX}* worktree, not ${branch}.`)
-  }
   if (
     run('git', ['merge-base', '--is-ancestor', 'origin/main', 'HEAD'], {
       cwd: worktree,
@@ -377,6 +425,7 @@ function publish(worktree, { merge }) {
   const forkFiles = git(worktree, ['diff', '--name-only', 'origin/main', 'HEAD'])
     .split('\n')
     .filter(Boolean)
+  pnpm(worktree, ['install', '--frozen-lockfile'])
   pnpm(worktree, ['tc'])
   pnpm(worktree, ['test:agent-hub'])
   pnpm(worktree, ['test:fork-sync'])
@@ -385,6 +434,15 @@ function publish(worktree, { merge }) {
     pnpm(worktree, ['test', ...tests, '--maxWorkers=2'])
   }
   const upstreamCount = aheadBehind(worktree, `origin/${FORK_LINE}...HEAD`).behind - 1
+  const watched = forkFiles.filter((path) => path !== LOCKFILE)
+  const upstreamChanges =
+    watched.length === 0
+      ? []
+      : formatUpstreamChanges(
+          git(worktree, ['log', '--format=%h %s', 'HEAD^1..HEAD^2', '--', ...watched], {
+            allowFailure: true
+          })
+        )
   git(worktree, ['push', '-u', 'origin', branch], { inherit: true })
   const env = githubEnv()
   const body = [
@@ -393,7 +451,10 @@ function publish(worktree, { merge }) {
     'Gates: `pnpm install --frozen-lockfile`, `pnpm tc`, `pnpm test:agent-hub`, `pnpm test:fork-sync` e os testes do fork.',
     '',
     'Arquivos que diferem do upstream depois do merge:',
-    ...forkFiles.map((path) => `- \`${path}\``)
+    ...forkFiles.map((path) => `- \`${path}\``),
+    '',
+    'Commits do upstream que tocaram esses arquivos (revalide a reaplicação do fork):',
+    ...(upstreamChanges.length > 0 ? upstreamChanges : ['- nenhum'])
   ].join('\n')
   const url = run(
     'gh',
@@ -423,7 +484,7 @@ function publish(worktree, { merge }) {
   }
 }
 
-function updateLocal(root) {
+export function updateLocal(root) {
   const branch = git(root, ['branch', '--show-current'])
   if (branch !== FORK_LINE) {
     throw new Error(
@@ -448,12 +509,15 @@ function updateLocal(root) {
   console.log('Done. Restart Orca dev (`corepack pnpm dev`) to run the updated build.')
 }
 
-export function main(argv = process.argv.slice(2)) {
+export function main(argv = process.argv.slice(2), cwd = process.cwd()) {
   const options = parseForkSyncArgs(argv)
-  const root = git(process.cwd(), ['rev-parse', '--show-toplevel'])
+  const root = git(cwd, ['rev-parse', '--show-toplevel'])
   if (options.command === 'status') {
     status(root)
     return
+  }
+  if (options.resume) {
+    assertSyncBranch(root)
   }
   assertToolchain(root)
   if (options.command === 'update-local') {
@@ -461,9 +525,21 @@ export function main(argv = process.argv.slice(2)) {
     return
   }
   const worktree = options.resume ? root : startSync(root)
-  if (worktree !== undefined && finishMerge(worktree)) {
-    publish(worktree, options)
+  if (worktree === undefined) {
+    return
   }
+  const manual = finishMerge(worktree)
+  if (manual.length > 0) {
+    console.error(
+      `\nResolve these conflicts in ${worktree}, \`git add\` them, then run \`corepack pnpm fork:sync --continue\` there:`
+    )
+    for (const path of manual) {
+      console.error(`  ${path}`)
+    }
+    process.exitCode = 2
+    return
+  }
+  publish(worktree, options)
 }
 
 if (process.argv[1] !== undefined && resolve(process.argv[1]) === resolve(import.meta.filename)) {

@@ -47,19 +47,23 @@ running Orca dev keeps working until `fork:update-local` runs in its checkout.
 Two conflicts resolve themselves:
 
 - `pnpm-lock.yaml`: upstream's lockfile, with only the hashes of patches the
-  fork changed (`patch_hash` is the sha256 of the patch file) replaced.
-  `pnpm install --frozen-lockfile` then proves the result.
+  fork changed (`patch_hash` is the sha256 of the patch file) replaced. The
+  hashes are recomputed again right before the merge commit, so a patch resolved
+  by hand is covered, and `pnpm install --frozen-lockfile` then proves the result.
 - `AGENTS.md`: upstream's file plus the block between the
   `<!-- fork:richarddaros/orca:start -->` and `:end -->` markers.
 
-Any other conflict stops the run with the list of files. Resolve them in the sync
-worktree, keeping upstream behavior and re-applying the fork change, then run
-`corepack pnpm fork:sync --continue [--merge]` there.
+Any other conflict, or an `AGENTS.md` without the block on both sides, stops the
+run with exit code 2 and the list of files before anything is installed. Resolve
+them in the sync worktree, keeping upstream behavior and re-applying the fork
+change, `git add` them, then run `corepack pnpm fork:sync --continue [--merge]`
+there. `--continue` refuses to run outside a `chore/sync-upstream-*` branch.
 
 The gates before the push are `pnpm install --frozen-lockfile`, `pnpm tc`,
 `pnpm test:agent-hub`, `pnpm test:fork-sync` and every fork-changed `*.test.*`
 under `src/` with two workers. The pull request body lists every file that still
-differs from upstream; it should hold only fork files.
+differs from upstream, which should be only fork files, and every upstream commit
+that touched one of them.
 
 ## Keeping the local Orca current
 

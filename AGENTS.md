@@ -78,6 +78,7 @@ This repository is a fork of `stablyai/orca`. `feat/agent-hub-poc` is the fork's
 - Before starting or resuming work, run `corepack pnpm fork:status`. If `feat/agent-hub-poc` is behind `main`, run `corepack pnpm fork:sync` first.
 - Never rebase, reset or force-push `feat/agent-hub-poc`, and never use `git pull`. Syncs are `--no-ff` merges of `origin/main` on `chore/sync-upstream-<YYYYMMDD>`, through a PR.
 - Resolve conflicts by keeping upstream behavior and re-applying the fork change. After the merge, `git diff origin/main...HEAD` lists only fork files.
+- The sync PR names every upstream commit that touched a fork file (`fork:sync` lists them), so each re-applied change can be rechecked.
 - Keep this section between its `fork:` markers: `fork:sync` re-applies it over upstream's `AGENTS.md`.
 - Fork-only docs under `docs/reference/` need their own `.gitignore` allow-list entry.
 - Fixes that are not fork-specific go on a branch cut from `origin/main`, so they can also be offered upstream.
