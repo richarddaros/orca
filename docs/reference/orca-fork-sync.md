@@ -101,7 +101,7 @@ exatamente o que é do fork.
 ### Proteção da `main`
 
 `main` é protegida com `lock_branch`, `enforce_admins` e `allow_fork_syncing`,
-com force push e deleção desligados. Um push para ela é recusado com
+com force push e exclusão desligados. Um push para ela é recusado com
 `GH006 ... Cannot change this locked branch`, mesmo com a credencial do dono,
 enquanto o botão "Sync fork" do GitHub e o `gh repo sync` continuam fazendo
 fast-forward. Para inspecionar ou restaurar a configuração:
@@ -134,8 +134,13 @@ PRs de mudança do fork (`feat/*`, `fix/*`) podem usar qualquer método.
 - **O pnpm fixado no `package.json`, sempre via `corepack pnpm`.** O corepack
   baixa a versão fixada sem trocar a global. Um pnpm diferente reescreve o
   `pnpm-lock.yaml` com uma entrada `@pnpm/exe` que não deve ser commitada.
-- **`gh` autenticado na conta `richarddaros`.** O script lê o token dessa conta
-  só para o próprio processo e não troca a conta ativa do `gh`.
+- **`gh` com a conta `richarddaros` logada.** Ela não precisa ser a conta
+  ativa, e nesta máquina não é. O script lê o token dessa conta só para o
+  próprio processo e não troca a conta ativa. Faça o mesmo em todo comando
+  `gh` manual sobre o fork:
+  `GH_TOKEN="$(gh auth token --user richarddaros)" gh ...`. Sem isso, o
+  comando roda com a conta ativa. Nunca use `gh auth switch`, que troca a
+  conta de todas as sessões.
 - **Chave SSH do alias `github-richard`.** O remoto `origin` é
   `git@github-richard:richarddaros/orca.git`, então o `git push` usa esse
   alias do `~/.ssh/config`, não o token do `gh`.
@@ -233,7 +238,7 @@ acontece, fica restrito a essa linha.
 ### Hook de pre-commit
 
 O commit do merge roda o hook de pre-commit (lint-staged) sobre os arquivos
-staged que ele cobre: código e configuração fora de `cloud/`, incluindo
+preparados para o commit (staged) que ele cobre: código e configuração fora de `cloud/`, incluindo
 arquivos do upstream. Um merge textual limpo ainda pode falhar no hook,
 tipicamente quando as linhas do upstream mais a mudança do fork passam um
 arquivo do limite de `max-lines`. A execução então para com a saída do hook e
@@ -252,7 +257,7 @@ continue.
 ### Gates e PR
 
 Os gates antes do push são `pnpm install --frozen-lockfile`, `pnpm tc`,
-`pnpm test:agent-hub`, `pnpm test:fork-sync` e todo `*.test.*` alterado pelo
+`pnpm test:agent-hub`, `pnpm test:fork-sync` e todo `*.test.{ts,tsx,mjs}` alterado pelo
 fork em `src/`, com dois workers. O corpo do PR lista todos os arquivos que
 ainda diferem do upstream (devem ser só os do fork) e todos os commits do
 upstream que tocaram algum deles, para que cada reaplicação seja revalidada.
@@ -283,14 +288,15 @@ as resoluções automáticas do upstream num merge que não é do upstream.
 ## Como criar uma mudança no fork
 
 ```bash
-corepack pnpm fork:status        # se faltar upstream, rode o fork:sync antes
+corepack pnpm fork:status        # se faltar upstream: fork:sync --merge, ou merge do PR de sync aberto
 git fetch --prune origin
 git worktree add --no-track -b feat/minha-mudanca <caminho do worktree> origin/feat/agent-hub-poc
 cd <caminho do worktree>
 corepack pnpm install --frozen-lockfile
 # implementar, fazer commit, rodar corepack pnpm tc e os testes tocados
 git push -u origin feat/minha-mudanca
-gh pr create --repo richarddaros/orca --base feat/agent-hub-poc
+GH_TOKEN="$(gh auth token --user richarddaros)" \
+  gh pr create --repo richarddaros/orca --base feat/agent-hub-poc
 ```
 
 - Sempre passe `--repo richarddaros/orca --base feat/agent-hub-poc` ao criar o
@@ -342,14 +348,14 @@ dois dias mantém os conflitos pequenos.
 Marque releases do fork em `feat/agent-hub-poc` com tags anotadas no formato
 `rd/v<versão do upstream>-<n>`, por exemplo `rd/v1.4.219-1`. Não use `v*`, que
 colide com as tags do upstream, nem `mobile-*-v*`, que os workflows de release
-do upstream capturam. Como o GitHub Actions está desligado no fork, tags
+do upstream reconhecem. Como o GitHub Actions está desligado no fork, tags
 enviadas não disparam nenhum workflow.
 
 ## Recuperação
 
-| Situação                                | O que fazer                                                                                                                                                                                         |
-| --------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Desistir de um sync ainda não publicado | O worktree de sync é descartável: `git worktree remove <caminho>` e `git branch -D <branch>`, com caminho e branch como aparecem em `git worktree list`.                                            |
-| Desfazer um sync já mergeado            | Ele é um único merge commit em `feat/agent-hub-poc`: `git revert -m 1 <sha>` numa branch nova e PR. Nunca use reset nem force push na linha.                                                        |
-| O build novo do Orca local deu problema | O `fork:update-local` só faz fast-forward: `git switch --detach ORIG_HEAD` e `corepack pnpm install --frozen-lockfile` rodam o commit anterior; `git switch feat/agent-hub-poc` volta para a linha. |
-| `pnpm-lock.yaml` alterado sem motivo    | Normalmente é a entrada `@pnpm/exe` de um pnpm não fixado. Confira com `git diff`; se for só essa entrada, descarte com `git restore pnpm-lock.yaml`.                                               |
+| Situação                                | O que fazer                                                                                                                                                                                                                                                                                                                                                                                         |
+| --------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Desistir de um sync ainda não publicado | O worktree de sync é descartável. Se houver merge em andamento, rode antes `git -C <caminho> merge --abort`. Depois, `git worktree remove <caminho>` e `git branch -D <branch>`, com caminho e branch como aparecem em `git worktree list`.                                                                                                                                                         |
+| Desfazer um sync já mergeado            | Ele é um único merge commit em `feat/agent-hub-poc`: `git revert -m 1 <sha>` numa branch nova e PR. Nunca use reset nem force push na linha. Depois do revert, os commits do upstream continuam como ancestrais da linha: o `fork:status` mostra 0 faltando e um novo `fork:sync` não os traz de volta. Para voltar a recebê-los, reverta o revert (`git revert <sha do revert>`) numa branch e PR. |
+| O build novo do Orca local deu problema | O `fork:update-local` só faz fast-forward: `git switch --detach ORIG_HEAD` e `corepack pnpm install --frozen-lockfile` rodam o commit anterior; `git switch feat/agent-hub-poc` volta para a linha.                                                                                                                                                                                                 |
+| `pnpm-lock.yaml` alterado sem motivo    | Normalmente é a entrada `@pnpm/exe` de um pnpm não fixado. Confira com `git diff`; se for só essa entrada, descarte com `git restore pnpm-lock.yaml`.                                                                                                                                                                                                                                               |
