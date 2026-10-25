@@ -75,12 +75,13 @@ Avoid adding low-value tests. These might be fine for development but offer low 
 This repository is a fork of `stablyai/orca`. `feat/agent-hub-poc` is the fork's own line: every fork branch, merge and `rd/v*` tag lands there, and it must carry every upstream change. Runbook: [`docs/reference/orca-fork-sync.md`](./docs/reference/orca-fork-sync.md).
 
 - The fork's `main` mirrors upstream and is locked on GitHub (`lock_branch`, `enforce_admins`, `allow_fork_syncing`); only `gh repo sync richarddaros/orca --branch main` moves it.
-- Before starting or resuming work, run `corepack pnpm fork:status`. If `feat/agent-hub-poc` is behind `main`, run `corepack pnpm fork:sync` first.
-- Never rebase, reset or force-push `feat/agent-hub-poc`, and never use `git pull`. Syncs are `--no-ff` merges of `origin/main` on `chore/sync-upstream-<YYYYMMDD>`, through a PR.
+- Before starting or resuming work, run `corepack pnpm fork:status`. If `feat/agent-hub-poc` is behind `main`, run `corepack pnpm fork:sync --merge` (or merge the open sync PR) first.
+- Fork-specific work goes on `feat/<slug>` or `fix/<slug>` cut from `origin/feat/agent-hub-poc`, with a PR opened by `GH_TOKEN="$(gh auth token --user richarddaros)" gh pr create --repo richarddaros/orca --base feat/agent-hub-poc`; the active `gh` account may be another one.
+- Never rebase, reset or force-push `feat/agent-hub-poc`, and never use `git pull`. Syncs are `--no-ff` merges of `origin/main` on `chore/sync-upstream-<YYYYMMDD>`, through a PR merged only with a merge commit or `fork:sync --merge`, never squash or rebase.
 - Resolve conflicts by keeping upstream behavior and re-applying the fork change. After the merge, `git diff origin/main...HEAD` lists only fork files.
 - The sync PR names every upstream commit that touched a fork file (`fork:sync` lists them), so each re-applied change can be rechecked.
 - Keep this section between its `fork:` markers: `fork:sync` re-applies it over upstream's `AGENTS.md`.
 - Fork-only docs under `docs/reference/` need their own `.gitignore` allow-list entry.
-- Fixes that are not fork-specific go on a branch cut from `origin/main`, so they can also be offered upstream.
+- Fixes that are not fork-specific go on a branch cut from the upstream commit already on the line, `git merge-base origin/main origin/feat/agent-hub-poc`, so they can also be offered upstream.
 
 <!-- fork:richarddaros/orca:end -->
