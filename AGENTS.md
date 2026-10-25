@@ -76,7 +76,7 @@ This repository is a fork of `stablyai/orca`. `feat/agent-hub-poc` is the fork's
 
 - The fork's `main` mirrors upstream and is locked on GitHub (`lock_branch`, `enforce_admins`, `allow_fork_syncing`); only `gh repo sync richarddaros/orca --branch main` moves it.
 - Before starting or resuming work, run `corepack pnpm fork:status`. If `feat/agent-hub-poc` is behind `main`, run `corepack pnpm fork:sync --merge` (or merge the open sync PR) first.
-- Fork work goes on `feat/<slug>` or `fix/<slug>` cut from `origin/feat/agent-hub-poc`, with a PR opened by `GH_TOKEN="$(gh auth token --user richarddaros)" gh pr create --repo richarddaros/orca --base feat/agent-hub-poc`; the active `gh` account may be another one.
+- Fork-specific work goes on `feat/<slug>` or `fix/<slug>` cut from `origin/feat/agent-hub-poc`, with a PR opened by `GH_TOKEN="$(gh auth token --user richarddaros)" gh pr create --repo richarddaros/orca --base feat/agent-hub-poc`; the active `gh` account may be another one.
 - Never rebase, reset or force-push `feat/agent-hub-poc`, and never use `git pull`. Syncs are `--no-ff` merges of `origin/main` on `chore/sync-upstream-<YYYYMMDD>`, through a PR merged only with a merge commit or `fork:sync --merge`, never squash or rebase.
 - Resolve conflicts by keeping upstream behavior and re-applying the fork change. After the merge, `git diff origin/main...HEAD` lists only fork files.
 - The sync PR names every upstream commit that touched a fork file (`fork:sync` lists them), so each re-applied change can be rechecked.
