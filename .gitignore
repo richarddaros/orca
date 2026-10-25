@@ -105,7 +105,6 @@ docs/**
 !docs/agent-skill-sharing-implementation-checklist.md
 !docs/mobile-terminal-shortcut-bar.md
 # Fork richarddaros: documentação do hub de agentes
-!docs/reference/
 !docs/reference/agent-hub-smoke.md
 !docs/reference/opencode-fork-sync.md
 !docs/reference/orca-fork-sync.md
