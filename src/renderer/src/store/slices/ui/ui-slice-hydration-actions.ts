@@ -71,7 +71,9 @@ const MAX_RIGHT_SIDEBAR_WIDTH = 4000
 export function createUiHydrationActions(set: UISliceSet, _get: UISliceGet): Partial<UISlice> {
   return {
     /** Captures the incoming write baseline before overlaying dirty or in-flight local fields. */
-    hydratePersistedUI: (ui, source = 'sync') =>
+    hydratePersistedUI: (ui, source = 'sync') => {
+      // Why optional: stores built from a subset of slices hydrate UI without the fork slice.
+      _get().hydrateCustomSidebarSections?.(ui.customSidebarSections, source)
       set((s) => {
         const manualRepoOrder = normalizeManualRepoOrder(ui.manualRepoOrder)
         const orderedRepos = applyManualRepoOrder(s.repos, manualRepoOrder)
@@ -300,5 +302,6 @@ export function createUiHydrationActions(set: UISliceSet, _get: UISliceGet): Par
           persistedUIWriteBaselineGeneration: nextWriteBaselineGeneration
         } as Partial<AppState>
       })
+    }
   }
 }

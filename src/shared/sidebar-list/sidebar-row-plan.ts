@@ -50,6 +50,8 @@ import type {
 import { orderMainWorktreeFirst, getRenderedNaturalAnchorRepoIds } from './section-order'
 import { withRepoSectionDisplayLabels } from '../project-section-order'
 import { buildOrderedGroups } from './worktree-grouping'
+import { createCustomSectionPlan } from '../custom-sidebar-sections/custom-section-plan'
+import type { CustomSidebarSectionsState } from '../custom-sidebar-sections/custom-sidebar-sections-state'
 
 type SidebarOccurrenceSection = WorktreeOccurrenceSection<Worktree> & { group: WorktreeGroupEntry }
 
@@ -79,6 +81,8 @@ export type SidebarRowPlanInputs = {
   defaultHostId: ExecutionHostId
   pinnedDisplayPolicy: PinnedWorktreeDisplayPolicy
   filterRepoIds: readonly string[]
+  /** Fork (richarddaros/orca): user sections; absent keeps upstream rows. */
+  customSidebarSections?: CustomSidebarSectionsState | null
 }
 
 /** Plans the sidebar's sections once; `render` emits rows for a collapse state. */
@@ -109,8 +113,14 @@ export function planSidebarRows(inputs: SidebarRowPlanInputs) {
   } = inputs
   const projectIndex = buildProjectGroupingIndex(projectGrouping)
   const repoOf = repoOfWorktree ?? ((worktree: Worktree) => repoMap.get(worktree.repoId))
+  const childrenByParentIdentity = nestLineage
+    ? getSidebarLineageChildren(worktrees, lineageById, worktreeMap, filterRepoIds)
+    : new Map<string, Worktree[]>()
+  const userSections = createCustomSectionPlan(inputs, childrenByParentIdentity)
   // Resolve folder membership before groupBy; every mode renders the same set (#15362).
-  const renderableFolderWorkspaces = getRenderableFolderWorkspaces(folderWorkspaces, projectGroups)
+  const renderableFolderWorkspaces = userSections.withoutFolderMembers(
+    getRenderableFolderWorkspaces(folderWorkspaces, projectGroups)
+  )
   const pendingByRepo = new Map<string, PendingCreationRef[]>()
   for (const creation of pendingCreations) {
     const list = pendingByRepo.get(creation.repoId) ?? []
@@ -122,15 +132,15 @@ export function planSidebarRows(inputs: SidebarRowPlanInputs) {
   const occurrencePlan = buildWorktreeOccurrencePlan({
     rows: worktrees,
     identityOf: getWorktreeHostIdentity,
-    childrenByParentIdentity: nestLineage
-      ? getSidebarLineageChildren(worktrees, lineageById, worktreeMap, filterRepoIds)
-      : new Map<string, Worktree[]>(),
+    childrenByParentIdentity,
     isPinned: (worktree) => worktree.isPinned === true,
     duplicatePinned: pinnedDisplayPolicy === 'duplicate-in-groups',
     owningSectionOf: (worktree) =>
       getProjectGroupingForRepo(worktree.repoId, repoMap, projectIndex),
     projectIdOf: (worktree) => worktree.repoId,
-    sectionsOf: ({ pinned, natural, displayRootByIdentity }) => {
+    sectionsOf: (lineagePlacement) => {
+      const { pinned, natural, displayRootByIdentity, customSections } =
+        userSections.place(lineagePlacement)
       const groups: OrderedGroupEntry[] =
         groupBy === 'none'
           ? [[ALL_GROUP_KEY, { label: '', items: [...natural], repoIds: new Set() }]]
@@ -153,7 +163,7 @@ export function planSidebarRows(inputs: SidebarRowPlanInputs) {
       if (pinned.length > 0) {
         groups.unshift([PINNED_GROUP_KEY, { label: '', items: pinned, repoIds: new Set() }])
       }
-      return groups.map(([key, group]): SidebarOccurrenceSection => {
+      const upstreamSections = groups.map(([key, group]): SidebarOccurrenceSection => {
         const revealPath =
           groupBy === 'repo' && key !== PINNED_GROUP_KEY && group.repo?.projectGroupId
             ? projectGroupPaths.get(group.repo.projectGroupId)
@@ -169,12 +179,14 @@ export function planSidebarRows(inputs: SidebarRowPlanInputs) {
           revealPath: { key, parent: revealPath }
         }
       })
+      return [...upstreamSections, ...customSections]
     }
   })
+  userSections.attach(occurrencePlan)
   const pinnedSectionWorktrees =
     occurrencePlan.sections.find((section) => section.key === PINNED_GROUP_KEY)?.group.items ?? []
   const orderedGroups: OrderedGroupEntry[] = occurrencePlan.sections
-    .filter((section) => section.key !== PINNED_GROUP_KEY)
+    .filter((section) => !userSections.isPlacedOutsideGroups(section.key))
     .map((section) => [section.key, section.group])
   const naturalWorktrees = orderedGroups.flatMap(([, group]) => group.items)
   const render = (collapsedGroups: Set<string>): Row[] => {
@@ -208,6 +220,7 @@ export function planSidebarRows(inputs: SidebarRowPlanInputs) {
       workspaceStatuses,
       projectGrouping
     })
+    userSections.emitSections('before', result, collapsedGroups, mixedWorktreeHostContextLabels)
     emitPinnedGroup(
       pinnedSectionWorktrees,
       repoOf,
@@ -221,6 +234,7 @@ export function planSidebarRows(inputs: SidebarRowPlanInputs) {
       noticeHostContextLabelByRepoId,
       mixedWorktreeHostContextLabels
     )
+    userSections.emitSections('after', result, collapsedGroups, mixedWorktreeHostContextLabels)
     if (groupBy === 'none') {
       // Folder-only accounts must still render flat rows (#15362).
       if (naturalWorktrees.length > 0 || renderableFolderWorkspaces.length > 0) {

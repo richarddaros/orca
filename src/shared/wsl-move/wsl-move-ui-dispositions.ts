@@ -9,6 +9,8 @@ import {
 /** UI fields that name a repo, worktree, pane or path. Everything else in the UI state is global. */
 export const UI_STATE_DISPOSITIONS = {
   lastActiveRepoId: notApplicableDisposition(38, 'repoId is kept.'),
+  // Fork (richarddaros/orca): a moved workspace leaves its section and returns to the normal list.
+  customSidebarSections: notApplicableDisposition(38, 'Section members keep their old host key.'),
   lastActiveWorktreeId: moveDisposition(38, { rewriteDesktopCopy: true }),
   manualRepoOrder: moveDisposition(38, {
     rewriteDesktopCopy: true,

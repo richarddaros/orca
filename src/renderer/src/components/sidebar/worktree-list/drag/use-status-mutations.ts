@@ -13,6 +13,7 @@ import {
 import { buildWorkspaceKanbanSidebarDropUpdates } from '../../workspace-kanban-sidebar-drop'
 import type { SortBy } from '../../../../../../shared/sidebar-list/smart-sort'
 import { switchSortToManualAfterDrop } from '../../manual-sort-switch-toast'
+import { reorderCustomSectionByDrag } from '../../custom-sections/custom-section-drag-reorder'
 import type { WorktreeReorderArgs, WorktreeStatusDropAtIndexArgs } from './drop-commit-context'
 import type { WorktreeManualOrderCatalog } from '../../worktree-manual-order-catalog'
 import {
@@ -113,6 +114,10 @@ export function useWorktreeStatusMutations(args: {
 
   const reorderWorktrees = useCallback(
     (reorderArgs: WorktreeReorderArgs) => {
+      // Fork (richarddaros/orca): inside Pinned or a user section, the drag reorders that section.
+      if (reorderCustomSectionByDrag(reorderArgs)) {
+        return
+      }
       const result = buildManualOrderUpdatesForVisibleGroups({
         ...reorderArgs,
         now: Date.now(),

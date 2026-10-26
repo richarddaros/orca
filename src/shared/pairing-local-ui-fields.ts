@@ -1,4 +1,5 @@
 import type { PersistedUIState } from './persisted-ui-state-types'
+import { FORK_LOCAL_UI_FIELDS } from './custom-sidebar-sections/custom-sidebar-sections-state'
 
 // Pairing-local views use each client’s host catalog/viewport; forwarding them would overwrite another client’s choices.
 // Strip on ui.set and pin local values on ui.get.
@@ -31,7 +32,10 @@ export type PairingLocalUiField = (typeof PAIRING_LOCAL_UI_FIELDS)[number]
 // Omit pairing-local fields from host response types so accidental reads fail compilation.
 export type PairedUiState = Omit<PersistedUIState, PairingLocalUiField>
 
-const PAIRING_LOCAL_UI_FIELD_SET: ReadonlySet<string> = new Set(PAIRING_LOCAL_UI_FIELDS)
+const PAIRING_LOCAL_UI_FIELD_SET: ReadonlySet<string> = new Set([
+  ...PAIRING_LOCAL_UI_FIELDS,
+  ...FORK_LOCAL_UI_FIELDS
+])
 
 // Accept arbitrary objects because ui.set’s Zod-inferred optionality differs from persisted state.
 export function omitPairingLocalUiFields<T extends object>(state: T): Omit<T, PairingLocalUiField> {

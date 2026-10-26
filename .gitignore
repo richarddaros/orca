@@ -108,6 +108,7 @@ docs/**
 !docs/reference/agent-hub-smoke.md
 !docs/reference/opencode-fork-sync.md
 !docs/reference/orca-fork-sync.md
+!docs/reference/orca-fork-custom-sidebar-sections.md
 
 .stably/*
 !.stably/docs/

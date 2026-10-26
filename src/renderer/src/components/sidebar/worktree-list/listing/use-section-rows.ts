@@ -40,6 +40,7 @@ import type { ExecutionHostRegistryEntry } from '../../../../../../shared/execut
 import { buildSidebarHostOptions } from '../../sidebar-host-options'
 import { selectPendingWorktreeCreationKeys } from './pending-worktree-creation-keys'
 import { selectWorktreesByRepo } from '@/store/workspace-record-selectors'
+import { useCustomSidebarSectionsInput } from '../../custom-sections/use-custom-sidebar-sections-input'
 
 type SectionRowsArgs = {
   agentSendTargetWorktreeId?: string | null
@@ -147,6 +148,7 @@ export function useSidebarSectionRows(args: SectionRowsArgs) {
     [hostOptions]
   )
 
+  const customSidebarSections = useCustomSidebarSectionsInput(worktrees)
   const hostScopedGroups =
     args.workspaceHostScope !== 'all' || args.visibleWorkspaceHostIds !== null
   const rowPlan = useMemo(
@@ -172,7 +174,8 @@ export function useSidebarSectionRows(args: SectionRowsArgs) {
         hostLabelById,
         defaultHostId,
         pinnedDisplayPolicy: args.pinnedDisplayPolicy,
-        filterRepoIds: args.filterRepoIds
+        filterRepoIds: args.filterRepoIds,
+        customSidebarSections
       }),
     [
       args.groupBy,
@@ -194,7 +197,8 @@ export function useSidebarSectionRows(args: SectionRowsArgs) {
       pendingCreations,
       hostLabelById,
       args.pinnedDisplayPolicy,
-      args.filterRepoIds
+      args.filterRepoIds,
+      customSidebarSections
     ]
   )
   const effectiveCollapsedGroups = useEffectiveCollapsedGroups({

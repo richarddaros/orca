@@ -3,6 +3,27 @@
     "retry": "Tentar novamente",
     "cancel": "Cancelar"
   },
+  "customSections": {
+    "newSection": "Nova seção",
+    "nameDescription": "Os workspaces ficam na ordem que você escolher; a atividade dos agentes nunca reordena uma seção.",
+    "nameLabel": "Nome da seção",
+    "renameTitle": "Renomear seção",
+    "save": "Salvar",
+    "create": "Criar",
+    "deleteTitle": "Apagar a seção \"{{name}}\"?",
+    "deleteDescription": "Os workspaces dela voltam para a lista normal. Nenhum workspace é apagado.",
+    "cancel": "Cancelar",
+    "delete": "Apagar seção",
+    "actionsFor": "Ações da seção {{name}}",
+    "moveUp": "Subir seção",
+    "moveDown": "Descer seção",
+    "pinnedStays": "O Pinned fica: o Pin e o Unpin usam ele.",
+    "moveToSection": "Mover para seção",
+    "newSectionWithWorkspace": "Nova seção com este workspace",
+    "moveWorkspaceUp": "Subir na seção",
+    "moveWorkspaceDown": "Descer na seção",
+    "removeFromSection": "Tirar da seção"
+  },
   "quickOpen": {
     "moreMatchesAvailable": "Mais resultados podem estar disponíveis. Refine sua busca para reduzir os resultados.",
     "recentValidationFailed": "Não foi possível verificar os arquivos recentes: {{error}}"

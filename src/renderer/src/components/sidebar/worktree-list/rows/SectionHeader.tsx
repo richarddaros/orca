@@ -48,6 +48,7 @@ import {
 } from './header-event-guards'
 import type { WorktreeSidebarHeaderDrag } from '../drag/use-header-drag'
 import { getWorktreeOptionId } from './option-dom'
+import * as customSections from '../../custom-sections/CustomSectionHeaderMenu'
 
 export type SectionHeaderRowContext = {
   groupBy: WorktreeGroupBy
@@ -151,6 +152,7 @@ export function renderWorktreeSectionHeaderRow(args: {
       ? getWorkspaceStatusFromGroupKey(row.key, ctx.workspaceStatuses)
       : null
   const isPinnedHeader = row.key === PINNED_GROUP_KEY
+  const isSection = isPinnedHeader || customSections.isCustomSectionHeaderKey(row.key)
   const headerVisual = getSidebarHeaderVisual(row.icon, ctx.workspaceStatuses)
   const label = row.label ?? headerVisual.label ?? ''
   const hostContext =
@@ -186,7 +188,7 @@ export function renderWorktreeSectionHeaderRow(args: {
   // Why: repo/project/status/pinned share compact section chrome; flat "All" stays a simple label.
   const showHeaderCollapseAffordance =
     row.count > 0 &&
-    (isRepoHeader || isProjectGroupHeader || headerWorkspaceStatus !== null || isPinnedHeader)
+    (isRepoHeader || isProjectGroupHeader || headerWorkspaceStatus !== null || isSection)
   return (
     <div
       key={vItem.key}
@@ -365,6 +367,8 @@ export function renderWorktreeSectionHeaderRow(args: {
                 />
               </div>
             ) : null}
+
+            <customSections.CustomSectionHeaderMenu headerKey={row.key} label={label} />
 
             {isProjectGroupHeader && !row.repo && projectGroupIdForHeader ? (
               <ProjectGroupHeaderMenu

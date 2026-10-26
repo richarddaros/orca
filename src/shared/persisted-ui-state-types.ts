@@ -10,6 +10,7 @@ import type { UsagePercentageDisplay } from './usage-percentage-display'
 import type { StatusBarUsageMode } from './status-bar-usage-mode'
 import type { PersistedTrustedOrcaHooks } from './orca-yaml-hook-types'
 import type { CustomPet } from './pet-types'
+import type { CustomSidebarSectionsState } from './custom-sidebar-sections/custom-sidebar-sections-state'
 import type {
   ActivityGroupBy,
   AgentActivityDisplayMode,
@@ -58,6 +59,8 @@ export type PersistedUIState = {
   visibleWorkspaceHostIds?: VisibleWorkspaceHostIds
   /** User-defined sidebar order for host sections; missing/new hosts append in discovered order. */
   workspaceHostOrder?: WorkspaceHostOrder
+  /** Fork (richarddaros/orca): user sidebar sections; desktop-only, never forwarded to paired clients. */
+  customSidebarSections?: CustomSidebarSectionsState
   /** Automations page host filter. Stores only a canonical host key; invalid values degrade to all hosts. */
   automationHostFilter?: PersistedAutomationHostFilter
   /** Desktop-owned all-host repo order; host-qualified identities keep a manual cross-host interleaving while each host owns its local permutation. */
