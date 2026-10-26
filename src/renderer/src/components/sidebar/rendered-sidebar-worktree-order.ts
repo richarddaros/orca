@@ -98,7 +98,8 @@ export function computeRenderedSidebarRows(
     // Why no hostLabelById: it only feeds display-only host context labels, never row order.
     defaultHostId,
     pinnedDisplayPolicy,
-    filterRepoIds: state.filterRepoIds
+    filterRepoIds: state.filterRepoIds,
+    customSidebarSections: state.customSidebarSections
   }).render(state.collapsedGroups)
 
   // Build the host registry only when sections may affect order; zero/one-host cases still safely no-op.

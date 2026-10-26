@@ -7,6 +7,7 @@ import { formatOptionalPrimaryShortcutLabel } from '@/hooks/useShortcutLabel'
 import { translate } from '@/i18n/i18n'
 import { openWorkspaceCreationComposerWithTourHandoff } from '../contextual-tours/workspace-creation-tour-handoff'
 import SidebarWorkspaceOptionsMenu from './SidebarWorkspaceOptionsMenu'
+import { CustomSectionHeaderSlot } from './custom-sections/CustomSectionHeaderSlot'
 
 function AddProjectButton({
   preserveWorkspaceBoardOpen
@@ -95,6 +96,7 @@ export function SidebarHeaderActions({
           />
         )}
       </div>
+      <CustomSectionHeaderSlot agentsViewActive={agentsViewActive} preserveWorkspaceBoardOpen />
       <AddProjectButton preserveWorkspaceBoardOpen />
       <NewWorkspaceButton preserveWorkspaceBoardOpen />
     </div>

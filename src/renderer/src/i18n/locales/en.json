@@ -32,6 +32,27 @@
     "save": "Save",
     "inspectionOnly": "Inspection only · File row order unchanged"
   },
+  "customSections": {
+    "newSection": "New section",
+    "nameDescription": "Workspaces stay in the order you choose; agent activity never reorders a section.",
+    "nameLabel": "Section name",
+    "renameTitle": "Rename section",
+    "save": "Save",
+    "create": "Create",
+    "deleteTitle": "Delete section \"{{name}}\"?",
+    "deleteDescription": "Its workspaces return to the normal list. No workspace is deleted.",
+    "cancel": "Cancel",
+    "delete": "Delete section",
+    "actionsFor": "Section actions for {{name}}",
+    "moveUp": "Move section up",
+    "moveDown": "Move section down",
+    "pinnedStays": "Pinned stays: Pin and Unpin use it.",
+    "moveToSection": "Move to section",
+    "newSectionWithWorkspace": "New section with this workspace",
+    "moveWorkspaceUp": "Move up in section",
+    "moveWorkspaceDown": "Move down in section",
+    "removeFromSection": "Remove from section"
+  },
   "osDocumentOpen": {
     "failed": "Failed to open the file."
   },
