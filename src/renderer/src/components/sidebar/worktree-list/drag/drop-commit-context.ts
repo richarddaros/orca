@@ -6,7 +6,7 @@ import type {
 import type { WorktreeDragGroup } from '../../worktree-manual-order'
 import type { WorktreeDragUnitGroup } from '../../worktree-drag-units'
 import type { WorktreeSidebarDropPreview } from '../../worktree-sidebar-drop-preview'
-import type { WorktreeStatusDropRequest } from './use-session'
+import type { WorktreeGroupDropRequest, WorktreeStatusDropRequest } from './use-session'
 import type { WorktreeSidebarLineageDropTarget } from './row-state'
 import type { DraggedWorktreeCopies } from './dragged-worktree-copies'
 
@@ -42,6 +42,10 @@ export type WorktreeDropCommitContext = {
   computeWorktreeDrop: (pointerY: number) => WorktreeSidebarDropPreview | null
   computeWorktreeStatusDrop: (
     request: WorktreeStatusDropRequest
+  ) => WorktreeSidebarDropPreview | null
+  // Fork (richarddaros/orca): drops into user sections; absent means they take no drop.
+  computeWorktreeGroupDrop?: (
+    request: WorktreeGroupDropRequest
   ) => WorktreeSidebarDropPreview | null
   refreshWorktreeDragSession: () => boolean
   getEligibleLineageDropTarget: (

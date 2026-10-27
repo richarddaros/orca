@@ -38,6 +38,12 @@ export type WorktreeStatusDropRequest = {
   draggedIds: readonly string[]
 }
 
+export type WorktreeGroupDropRequest = {
+  pointerY: number
+  groupKey: string
+  draggedIds: readonly string[]
+}
+
 export type WorktreeDragSession = ReturnType<typeof useWorktreeDragSession>
 
 export function useWorktreeDragSession(args: {
@@ -186,13 +192,14 @@ export function useWorktreeDragSession(args: {
     },
     [computeWorktreeDropForGroup, scrollRef]
   )
-  const computeWorktreeStatusDrop = useCallback(
-    (request: WorktreeStatusDropRequest): WorktreeSidebarDropPreview | null => {
+  // Fork (richarddaros/orca): any target group, so a drag can also land in a user section.
+  const computeWorktreeGroupDrop = useCallback(
+    (request: WorktreeGroupDropRequest): WorktreeSidebarDropPreview | null => {
       const container = scrollRef.current
       if (!container) {
         return null
       }
-      const groupKey = getWorkspaceStatusGroupKey(request.status)
+      const { groupKey } = request
       const session = worktreeDragSessionRef.current
       const scrollTop = container.scrollTop
       const heldAnchor = statusDropAnchorsRef.current.get(groupKey) ?? null
@@ -225,6 +232,15 @@ export function useWorktreeDragSession(args: {
     },
     [computeWorktreeDropForGroup, scrollRef]
   )
+  const computeWorktreeStatusDrop = useCallback(
+    (request: WorktreeStatusDropRequest): WorktreeSidebarDropPreview | null =>
+      computeWorktreeGroupDrop({
+        pointerY: request.pointerY,
+        groupKey: getWorkspaceStatusGroupKey(request.status),
+        draggedIds: request.draggedIds
+      }),
+    [computeWorktreeGroupDrop]
+  )
 
   // Keep session callback identity stable for memoized cards.
   return useMemo(
@@ -240,10 +256,12 @@ export function useWorktreeDragSession(args: {
       getReorderUnitDraggedIds,
       refreshWorktreeDragSession,
       computeWorktreeDrop,
+      computeWorktreeGroupDrop,
       computeWorktreeStatusDrop
     }),
     [
       computeWorktreeDrop,
+      computeWorktreeGroupDrop,
       computeWorktreeStatusDrop,
       getReorderDraggedCopies,
       getReorderDraggedIds,

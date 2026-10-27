@@ -8,6 +8,7 @@ import {
 } from '../../workspace-kanban-sidebar-drop'
 import { updateSidebarDragPreviewPosition } from '../../worktree-sidebar-pointer-drag-dom'
 import { getPointerDropStatusTarget, shouldPreferSidebarStatusDropTarget } from './status-target'
+import { previewCustomSectionDrop } from '../../custom-sections/custom-section-drop'
 import type {
   ShouldShowWorkspaceBoardDropIndicator,
   WorktreeDropCommitContext
@@ -161,6 +162,10 @@ export function flushWorktreePointerDragFrame(args: WorktreePointerDragFrameArgs
     args.setWorktreeDragState((prev) =>
       applyWorktreeLineageDropPreview(prev, lineageParentId, drag.currentY)
     )
+    return
+  }
+  // Fork (richarddaros/orca): Pinned and user sections take drops from other groups.
+  if (previewCustomSectionDrop(args)) {
     return
   }
   if (

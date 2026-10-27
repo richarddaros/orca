@@ -1,6 +1,6 @@
 # Seções personalizadas na sidebar (fork)
 
-<!-- updated: 2026-10-25 -->
+<!-- updated: 2026-10-26 -->
 
 Recurso só do fork `richarddaros/orca` (issue #10). Na lista **Projects** da
 sidebar, o usuário cria seções com nome (por exemplo, "MCF") e coloca nelas
@@ -15,8 +15,12 @@ essa ordem; os status continuam atualizando normalmente.
 - **Pôr um workspace numa seção:** clique direito no card › **Mover para
   seção**, ou **Nova seção com este workspace**.
 - **Ordenar dentro da seção:** arraste o card dentro da própria seção, ou
-  clique direito › **Subir na seção** / **Descer na seção**. Arrastar de uma
-  seção para outra entra numa segunda entrega.
+  clique direito › **Subir na seção** / **Descer na seção**.
+- **Arrastar para uma seção:** arraste o card de qualquer grupo (a lista, o
+  Pinned ou outra seção) e solte entre os cards da seção, onde aparece a linha
+  de inserção, ou sobre o título dela, para entrar no topo.
+- **Arrastar para fora:** soltar um card de uma seção sobre a lista normal tira
+  ele da seção.
 - **Tirar da seção:** clique direito › **Tirar da seção**. O workspace volta
   para a lista normal.
 - **Seção:** menu ⋯ do título › renomear, subir, descer ou apagar. Apagar não
@@ -50,13 +54,40 @@ essa ordem; os status continuam atualizando normalmente.
   aparece depois dos guardados, mas sem posição fixa.
 - Workspaces apagados continuam como chaves guardadas na seção; não aparecem e
   não atrapalham a ordem.
+- **Arrasto entre grupos** (só depois do primeiro uso; antes disso o arrasto é o
+  do upstream):
+  - Soltar numa seção põe o card na posição da linha de inserção; no título, no
+    topo. Vale também para seção vazia ou recolhida. Com vários cards
+    selecionados, entram todos, na ordem do arrasto. Os filhos de linhagem vão
+    junto com o pai, sem virar membros.
+  - Entrar numa seção personalizada faz **Unpin**; entrar no Pinned faz **Pin**
+    pelo mesmo caminho do upstream (vale também para folder workspaces e para o
+    Pinned cheio) e guarda a posição solta.
+  - Soltar um card de uma seção personalizada sobre um card ou título da lista
+    normal tira ele da seção. No agrupamento por status, se o status de destino
+    for outro, o status também muda, como já acontecia. Arrastar para fora do
+    Pinned continua igual ao upstream: não faz Unpin, nem para os cards fixados
+    que vierem numa seleção múltipla.
+  - Entre dois cards, só vale a seção cujo card está a até 8 px do ponteiro; o
+    vão logo abaixo do título de outro grupo continua desse grupo.
+  - Soltar sobre os cards de uma seção ou do Pinned vale como drop na seção,
+    mesmo no agrupamento por status, em que antes isso mudava o status para o
+    do card de baixo. Soltar no meio de um card continua aninhando
+    (linhagem), e os grupos de status continuam mudando o status.
+  - Uma seção cheia (500) não aceita o drop e nada muda.
 
 ## Limitações conhecidas
 
-- Arrastar um card de uma seção para outra, ou da lista para uma seção, fica
-  para a segunda entrega; hoje isso reordena só o grupo de origem, como no
-  upstream.
-- Folder workspaces não têm o menu de seção nesta entrega.
+- Arrastar para fora de uma seção não mostra linha de inserção: o card sai da
+  seção ao soltar. Soltar num vão da lista, fora de qualquer card ou título,
+  mantém o card na seção. O arrasto pelo board (HTML5) não conhece as seções.
+- Uma seção cheia (500) ainda mostra a linha de inserção, mas o drop não muda
+  nada.
+- Com a opção que repete os fixados nos grupos, ou com a mesma seção em dois
+  hosts, soltar sobre um card que fica fora dos grupos de arrasto segue o
+  upstream (no agrupamento por status, muda o status).
+- Folder workspaces não têm o menu de seção nesta entrega. Soltos no Pinned,
+  são fixados pelo upstream mas não guardam a posição: entram no fim do Pinned.
 - O fallback de `worktree-reveal-group-keys` não conhece as seções.
 - Recolher uma seção vale para todos os hosts.
 - Mover e subir uma seção contam o Pinned mesmo quando ele está escondido por
@@ -77,32 +108,37 @@ para a lista normal.
 
 Módulos do fork:
 
-| Arquivo                                                               | Papel                                                                            |
-| --------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
-| `src/shared/custom-sidebar-sections/custom-sidebar-sections-state.ts` | Tipos, normalização e edições puras (criar, mover, apagar, reconciliar o Pinned) |
-| `src/shared/custom-sidebar-sections/custom-section-plan.ts`           | Encaixe na montagem da lista: posição das seções, ordem fixa e linhagem          |
-| `src/shared/custom-sidebar-sections/custom-section-order.ts`          | Ordem dentro de uma seção: posição salva, filhos por criação, ordem de tela      |
-| `src/renderer/src/store/slices/custom-sidebar-sections.ts`            | Slice do store, ativação no primeiro uso, gravação e Pin/Unpin                   |
-| `src/renderer/src/components/sidebar/custom-sections/`                | Botão, diálogos, menu ⋯ da seção, menu do card e arrasto dentro da seção         |
+| Arquivo                                                                      | Papel                                                                                   |
+| ---------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| `src/shared/custom-sidebar-sections/custom-sidebar-sections-state.ts`        | Tipos, normalização e edições puras (criar, mover, apagar, reconciliar o Pinned)        |
+| `src/shared/custom-sidebar-sections/custom-section-plan.ts`                  | Encaixe na montagem da lista: posição das seções, ordem fixa e linhagem                 |
+| `src/shared/custom-sidebar-sections/custom-section-order.ts`                 | Ordem dentro de uma seção: posição salva, filhos por criação, ordem de tela             |
+| `src/renderer/src/store/slices/custom-sidebar-sections.ts`                   | Slice do store, ativação no primeiro uso, gravação e Pin/Unpin                          |
+| `src/renderer/src/components/sidebar/custom-sections/`                       | Botão, diálogos, menu ⋯ da seção, menu do card e arrasto dentro da seção                |
+| `src/renderer/src/components/sidebar/custom-sections/custom-section-drop.ts` | Arrasto entre grupos: alvo sob o ponteiro, linha de inserção, drop e saída para a lista |
 
 Pontos de encaixe em arquivos do upstream (conferir em todo sync que mexer neles):
 
-| Arquivo                                                                          | Encaixe                                                                                                                                  |
-| -------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| `src/shared/sidebar-list/sidebar-row-plan.ts`                                    | `customSidebarSections` nas entradas, `createCustomSectionPlan`, `place()` em `sectionsOf`, `emitSections` em volta de `emitPinnedGroup` |
-| `src/renderer/src/components/sidebar/worktree-list/listing/use-section-rows.ts`  | `useCustomSidebarSectionsInput` e repasse ao `planSidebarRows`                                                                           |
-| `src/renderer/src/components/sidebar/rendered-sidebar-worktree-order.ts`         | Mesma entrada, para a ordem dos atalhos de teclado                                                                                       |
-| `src/renderer/src/components/sidebar/worktree-list/rows/SectionHeader.tsx`       | `CustomSectionHeaderMenu` e seta de recolher das seções                                                                                  |
-| `src/renderer/src/components/sidebar/sidebar-header-actions.tsx`                 | `CustomSectionHeaderSlot` antes de "Adicionar projeto"                                                                                   |
-| `src/renderer/src/components/sidebar/WorktreeContextMenuView.tsx`                | `CustomSectionCardMenuItems` depois de Pin/Unpin                                                                                         |
-| `src/renderer/src/components/sidebar/worktree-list/drag/use-status-mutations.ts` | `reorderCustomSectionByDrag` no início do `reorderWorktrees`                                                                             |
-| `src/renderer/src/components/sidebar/ProjectGroupNameDialog.tsx`                 | Prop opcional `nameLabel`; sem ela o rótulo continua "Group Name"                                                                        |
-| `src/renderer/src/store/index.ts`, `types.ts`, `slices/store-test-helpers.ts`    | Registro do slice                                                                                                                        |
-| `src/renderer/src/store/slices/ui/ui-slice-hydration-actions.ts`                 | Hidratação do campo                                                                                                                      |
-| `src/shared/persisted-ui-state-types.ts`, `pairing-local-ui-fields.ts`           | Campo persistido e bloqueio para pareados                                                                                                |
-| `src/main/runtime/rpc/methods/ui-state-schema-parity-checks.ts`                  | Campo fora do schema do RPC                                                                                                              |
-| `src/shared/wsl-move/wsl-move-ui-dispositions.ts`                                | Classificação do campo na migração para o WSL                                                                                            |
-| `src/renderer/src/i18n/locales/en.json`, `pt.json`                               | Bloco `customSections`                                                                                                                   |
+| Arquivo                                                                                                       | Encaixe                                                                                                                                  |
+| ------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/shared/sidebar-list/sidebar-row-plan.ts`                                                                 | `customSidebarSections` nas entradas, `createCustomSectionPlan`, `place()` em `sectionsOf`, `emitSections` em volta de `emitPinnedGroup` |
+| `src/renderer/src/components/sidebar/worktree-list/listing/use-section-rows.ts`                               | `useCustomSidebarSectionsInput` e repasse ao `planSidebarRows`                                                                           |
+| `src/renderer/src/components/sidebar/rendered-sidebar-worktree-order.ts`                                      | Mesma entrada, para a ordem dos atalhos de teclado                                                                                       |
+| `src/renderer/src/components/sidebar/worktree-list/rows/SectionHeader.tsx`                                    | `CustomSectionHeaderMenu` e seta de recolher das seções                                                                                  |
+| `src/renderer/src/components/sidebar/sidebar-header-actions.tsx`                                              | `CustomSectionHeaderSlot` antes de "Adicionar projeto"                                                                                   |
+| `src/renderer/src/components/sidebar/WorktreeContextMenuView.tsx`                                             | `CustomSectionCardMenuItems` depois de Pin/Unpin                                                                                         |
+| `src/renderer/src/components/sidebar/worktree-list/drag/use-status-mutations.ts`                              | `reorderCustomSectionByDrag` no início do `reorderWorktrees`                                                                             |
+| `src/renderer/src/components/sidebar/worktree-list/drag/pointer-flush.ts`                                     | `previewCustomSectionDrop` logo depois da linhagem                                                                                       |
+| `src/renderer/src/components/sidebar/worktree-list/drag/pointer-commit.ts`                                    | `commitCustomSectionDrop` logo depois da linhagem                                                                                        |
+| `src/renderer/src/components/sidebar/worktree-list/drag/use-session.ts`                                       | `computeWorktreeGroupDrop` (qualquer grupo); `computeWorktreeStatusDrop` delega para ele                                                 |
+| `src/renderer/src/components/sidebar/worktree-list/drag/drop-commit-context.ts`, `use-drop-commit-context.ts` | Campo opcional `computeWorktreeGroupDrop` no contexto do drop                                                                            |
+| `src/renderer/src/components/sidebar/ProjectGroupNameDialog.tsx`                                              | Prop opcional `nameLabel`; sem ela o rótulo continua "Group Name"                                                                        |
+| `src/renderer/src/store/index.ts`, `types.ts`, `slices/store-test-helpers.ts`                                 | Registro do slice                                                                                                                        |
+| `src/renderer/src/store/slices/ui/ui-slice-hydration-actions.ts`                                              | Hidratação do campo                                                                                                                      |
+| `src/shared/persisted-ui-state-types.ts`, `pairing-local-ui-fields.ts`                                        | Campo persistido e bloqueio para pareados                                                                                                |
+| `src/main/runtime/rpc/methods/ui-state-schema-parity-checks.ts`                                               | Campo fora do schema do RPC                                                                                                              |
+| `src/shared/wsl-move/wsl-move-ui-dispositions.ts`                                                             | Classificação do campo na migração para o WSL                                                                                            |
+| `src/renderer/src/i18n/locales/en.json`, `pt.json`                                                            | Bloco `customSections`                                                                                                                   |
 
 O modo `ORCA_SIDEBAR_INPUTS=main` (chave escura, barrada no empacotamento) não
 recebe as seções. O app do celular também não.
@@ -120,9 +156,27 @@ recebe as seções. O app do celular também não.
   bloqueio no cliente web.
 - `src/main/runtime/rpc/methods/client-ui-fork-local-fields.test.ts`: o campo
   não entra pelo `ui.set` nem sai pelo `ui.get` de clientes pareados.
+- `src/renderer/src/components/sidebar/custom-sections/custom-section-drop.test.ts`:
+  drop num card de outra seção (antes do próximo membro guardado sob a linha,
+  sem trocar pelo gêmeo de outro host), no título (topo, com a linha embaixo do
+  título, inclusive com host no título), no título do Pinned (Pin pelo upstream)
+  e não num status chamado "pinned", título de seção recolhida ou vazia, folder
+  fora da seção (só o Pin do upstream), vão de outro grupo ou fora da sidebar,
+  dentro da origem e
+  antes do primeiro uso (fica com o upstream), da seção para a lista (sai da
+  seção, nunca um fixado) e linhagem antes da seção.
 - `src/renderer/src/components/sidebar/custom-sections/custom-section-drag-reorder.test.ts`:
   o arrasto resolve cada card para a chave do membro da seção, mesmo com um
   gêmeo de outro host na tela.
+- `tests/e2e/custom-sidebar-sections-drag.spec.ts`: no Orca real, com o mouse,
+  arrasta da lista para o vão entre dois cards de uma seção, entre seções pelo
+  título, do Pinned para uma seção (Unpin), da seção para a lista e para o
+  Pinned entre dois fixados (Pin naquela posição), e confere o estado salvo; um
+  segundo teste, no agrupamento por status, mostra que soltar sobre um card da
+  seção não muda o status nem troca o sort para Manual, e que voltar para um card de outro status tira da
+  seção e muda o status. Os testes emulam `prefers-reduced-motion`: na janela
+  escondida, a animação de linhas do upstream congela e deixa cards sob o
+  ponteiro.
 - `tests/e2e/custom-sidebar-sections.spec.ts`: no Orca real, com sort Recent,
   prova primeiro que a atividade reordena a lista normal e depois que a seção
   "MCF" criada pelo botão mantém a ordem escolhida; um segundo teste fecha e

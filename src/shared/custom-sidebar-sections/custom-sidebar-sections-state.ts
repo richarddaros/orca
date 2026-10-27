@@ -1,5 +1,6 @@
 /** Fork-owned (richarddaros/orca): user-named sidebar sections with a frozen, user-defined order. */
 import type { PersistedUIState } from '../persisted-ui-state-types'
+import { PINNED_GROUP_KEY } from '../sidebar-list/group-keys'
 
 // Why: sections name this desktop's workspaces; paired clients keep their own (empty) view.
 export const FORK_LOCAL_UI_FIELDS = [
@@ -8,7 +9,7 @@ export const FORK_LOCAL_UI_FIELDS = [
 
 export const PINNED_CUSTOM_SECTION_ID = 'pinned'
 
-const CUSTOM_SECTION_KEY_PREFIX = 'custom-section:'
+export const CUSTOM_SECTION_KEY_PREFIX = 'custom-section:'
 const MAX_SECTIONS = 50
 const MAX_MEMBERS_PER_SECTION = 500
 export const MAX_CUSTOM_SECTION_NAME_LENGTH = 60
@@ -38,6 +39,13 @@ export function getCustomSectionIdFromGroupKey(key: string): string | null {
   return key.startsWith(CUSTOM_SECTION_KEY_PREFIX)
     ? key.slice(CUSTOM_SECTION_KEY_PREFIX.length)
     : null
+}
+
+/** The section a sidebar group names: Pinned's group or a user section's; null for any other group. */
+export function getCustomSectionIdOfGroupKey(groupKey: string): string | null {
+  return groupKey === PINNED_GROUP_KEY
+    ? PINNED_CUSTOM_SECTION_ID
+    : getCustomSectionIdFromGroupKey(groupKey)
 }
 
 export function createInitialCustomSidebarSections(): CustomSidebarSectionsState {
@@ -195,6 +203,42 @@ export function placeCustomSectionMember(
     return { ...section, members }
   })
   return { ...state, sections }
+}
+
+/**
+ * Drops workspaces into a section right before `beforeKey` (at the end when it is null or not stored there),
+ * removing them from any other section. Returns `state` itself when nothing changes or the section would overflow.
+ */
+export function placeCustomSectionMembersBefore(
+  state: CustomSidebarSectionsState,
+  keys: readonly string[],
+  sectionId: string,
+  beforeKey: string | null
+): CustomSidebarSectionsState {
+  const target = state.sections.find((section) => section.id === sectionId)
+  const moving = [...new Set(keys)]
+  if (!target || moving.length === 0) {
+    return state
+  }
+  const staying = target.members.filter((member) => !moving.includes(member))
+  if (staying.length + moving.length > MAX_MEMBERS_PER_SECTION) {
+    return state
+  }
+  const at = beforeKey === null ? -1 : target.members.indexOf(beforeKey)
+  const insertAt =
+    at === -1
+      ? staying.length
+      : target.members.slice(0, at).filter((member) => !moving.includes(member)).length
+  const members = [...staying.slice(0, insertAt), ...moving, ...staying.slice(insertAt)]
+  const sections = moving
+    .reduce<CustomSidebarSection[]>((all, key) => withoutMember(all, key), state.sections)
+    .map((section) => (section.id === sectionId ? { ...section, members } : section))
+  const changed = sections.some(
+    (section, index) =>
+      section.members.length !== state.sections[index].members.length ||
+      section.members.some((member, slot) => member !== state.sections[index].members[slot])
+  )
+  return changed ? { ...state, sections } : state
 }
 
 /** Applies a drag's new on-screen order (host-qualified keys) to a section; hidden members keep their slots. */
