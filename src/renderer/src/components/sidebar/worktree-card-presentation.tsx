@@ -100,6 +100,9 @@ export function buildWorktreeCardPresentation(card: WorktreeCardController) {
   )
   const showHostContextBadge = !!contextLabel && (!compactCards || !!showProjectName)
   const showDetachedHeadInMetaRow = cardDetails.metaRow && !isFolder && detachedHeadDisplay !== null
+  // Fork (richarddaros/orca): default cards show the worktree folder under the title.
+  const showWorktreeFolder =
+    cardDetails.metaRow && !newCardStyle && !isFolder && worktree.path.trim().length > 0
   const showBranch =
     !isFolder &&
     branch.length > 0 &&
@@ -122,6 +125,7 @@ export function buildWorktreeCardPresentation(card: WorktreeCardController) {
     folderMetaRowContent ||
     showBranch ||
     showIdentityInNewCard ||
+    showWorktreeFolder ||
     showDetachedHeadInMetaRow ||
     showConflictOperationBadge ||
     cacheStartedAt != null ||
@@ -266,6 +270,7 @@ export function buildWorktreeCardPresentation(card: WorktreeCardController) {
     showHostContextBadge,
     contextLabel,
     showIdentityInNewCard,
+    showWorktreeFolder,
     showDetachedHeadInMetaRow,
     showBranch,
     showConflictOperationBadge,

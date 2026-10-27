@@ -111,6 +111,39 @@ test('a user section keeps the order the user chose while Recent re-sorts on act
   await sidebar.screenshot({ path: testInfo.outputPath('custom-sidebar-sections.png') })
 })
 
+test('a card in a user section leads with its project chip and names its worktree folder', async ({
+  orcaPage
+}, testInfo) => {
+  await waitForSessionReady(orcaPage)
+  const [worktreeId] = await getAllWorktreeIds(orcaPage)
+  await orcaPage.evaluate(() => window.__store?.getState().setGroupBy('repo'))
+  const card = (sectionKeyPrefix: string) =>
+    orcaPage.locator(
+      `[data-worktree-section-key^="${sectionKeyPrefix}"][data-worktree-id="${worktreeId}"]`
+    )
+  const projectChip = '[aria-label^="Project "]'
+
+  // Control: under its project header the card carries no project chip.
+  await expect(card('repo:').locator(projectChip)).toHaveCount(0)
+
+  await createSection(orcaPage, 'MCF')
+  await moveToSection(orcaPage, worktreeId, 'MCF')
+  const sectionCard = card('custom-section:')
+  await expect(sectionCard.locator(projectChip)).toBeVisible()
+
+  const worktreePath = await orcaPage.evaluate(
+    (id) => window.__store?.getState().getKnownWorktreeById(id)?.path ?? '',
+    worktreeId
+  )
+  const folderName = worktreePath.split(/[\\/]/).findLast((part) => part.length > 0) ?? ''
+  expect(folderName).not.toBe('')
+  await expect(sectionCard.locator('[data-worktree-card-folder]')).toHaveText(folderName)
+
+  await orcaPage
+    .locator('[data-worktree-sidebar]')
+    .screenshot({ path: testInfo.outputPath('custom-section-card-chip-and-folder.png') })
+})
+
 test('a user section and its workspace come back after quit and relaunch', async (// oxlint-disable-next-line no-empty-pattern -- this test owns both Electron launches.
 {}, testInfo) => {
   // Why: two full app launches plus a repo attach outlast the default test timeout.

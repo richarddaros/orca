@@ -9,6 +9,7 @@ import { WorktreeHostContextBadge } from './WorktreeHostContextBadge'
 import { CONFLICT_OPERATION_LABELS } from './WorktreeCardHelpers'
 import { TruncatedSidebarLabel } from './truncated-sidebar-label'
 import { getDirectoryName } from './worktree-card-model'
+import { WorktreeCardFolderLabel } from './worktree-card-folder-label'
 import type { WorktreeCardPresentation } from './worktree-card-presentation'
 import type { WorktreeCardController } from './use-worktree-card-controller'
 
@@ -36,6 +37,7 @@ export function WorktreeCardMetaRow({
     showHostContextBadge,
     contextLabel,
     showIdentityInNewCard,
+    showWorktreeFolder,
     hasHoverDetails,
     showBranch,
     showDetachedHeadInMetaRow,
@@ -57,6 +59,8 @@ export function WorktreeCardMetaRow({
         )}
 
         {showHostContextBadge && <WorktreeHostContextBadge label={contextLabel ?? ''} />}
+
+        {showWorktreeFolder && <WorktreeCardFolderLabel path={worktree.path} />}
 
         {showIdentityInNewCard ? (
           <TruncatedSidebarLabel

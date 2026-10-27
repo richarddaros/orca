@@ -8,6 +8,7 @@ import { getWorktreeHostIdentity } from '../../../../../../shared/worktree/host-
 import { isActiveSidebarWorkspace } from '../../../../../../shared/sidebar-list/active-workspace'
 import WorktreeCard, { type ActiveSurfaceVariant } from '../../WorktreeCard'
 import { PINNED_GROUP_KEY } from '../../../../../../shared/sidebar-list/group-keys'
+import { getCustomSectionIdFromGroupKey } from '../../../../../../shared/custom-sidebar-sections/custom-sidebar-sections-state'
 import type { WorktreeGroupBy } from '../../../../../../shared/sidebar-list/row-types'
 import {
   getFolderBackedRepoWorktreeCardContentIndent,
@@ -200,7 +201,11 @@ export function renderWorktreeItemRow(
         // Why: pinned worktrees mix repos; cross-repo children opt into the existing project-name badge.
         hostContextLabel={itemRow.hostContextLabel}
         showProjectName={itemRow.showProjectName}
-        inPinnedSection={itemRow.sectionKey === PINNED_GROUP_KEY}
+        // Fork (richarddaros/orca): user sections mix projects too, so their cards lead with the project chip.
+        inPinnedSection={
+          itemRow.sectionKey === PINNED_GROUP_KEY ||
+          getCustomSectionIdFromGroupKey(itemRow.sectionKey) !== null
+        }
         renameRowKey={itemRow.rowKey}
         lineageChildCount={itemRow.lineageChildCount}
         lineageCollapsed={itemRow.lineageCollapsed}
