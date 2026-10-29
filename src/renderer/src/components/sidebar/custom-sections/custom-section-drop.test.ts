@@ -440,6 +440,59 @@ describe('custom section drop', () => {
     expect(setWorktreeDragState).not.toHaveBeenCalled()
   })
 
+  it('takes a section card exactly 8 px from the pointer, above or below, never 9 px', () => {
+    pointAt(container)
+    const dropsAt = (y: number) =>
+      commitCustomSectionDrop({ drag: makeDrag('repo:r1'), ctx: makeCtx(), x: 50, y })
+    // The card spans 150..205.
+    expect(dropsAt(213)).toBe(true)
+    expect(dropsAt(214)).toBe(false)
+    expect(dropsAt(142)).toBe(true)
+    expect(dropsAt(141)).toBe(false)
+  })
+
+  it('falls back to the previewed section when released within 6 px of it off any row', () => {
+    pointAt(container)
+    const previewAt210 = (drag: WorktreePointerDrag) => {
+      drag.currentY = 210
+      return previewCustomSectionDrop({
+        drag,
+        ctx: makeCtx(),
+        setWorktreeDragState: vi.fn(),
+        setDragOverStatus: vi.fn(),
+        setPinDragOver: vi.fn()
+      })
+    }
+
+    // 216 is past the row gap (205 + 8), so only the previewed target is left.
+    const near = makeDrag('repo:r1')
+    expect(previewAt210(near)).toBe(true)
+    expect(commitCustomSectionDrop({ drag: near, ctx: makeCtx(), x: 50, y: 216 })).toBe(true)
+
+    const far = makeDrag('repo:r1')
+    expect(previewAt210(far)).toBe(true)
+    expect(commitCustomSectionDrop({ drag: far, ctx: makeCtx(), x: 50, y: 217 })).toBe(false)
+  })
+
+  it('stores a multi-selection in drag order, a lineage child dragged on its own included', () => {
+    pointAt(sectionCard)
+    const copies: WorktreePointerDrag['draggedCopies'] = [
+      { id: 'a', hostId: 'ssh:box' },
+      { id: 'child', hostId: 'local' }
+    ]
+    commitCustomSectionDrop({
+      drag: makeDrag('repo:r1', ['child', 'a'], copies),
+      ctx: makeCtx(),
+      x: 50,
+      y: 180
+    })
+    const [stored] = store.dropWorkspacesIntoCustomSection.mock.calls[0]!
+    expect(stored.map((workspace: { key: string }) => workspace.key)).toEqual([
+      'local|child',
+      'ssh:box|a'
+    ])
+  })
+
   it('leaves a drop on the board to upstream while sections are active', () => {
     board.commitTarget = { status: 'todo', isPinDrop: false }
     pointAt(sectionCard)

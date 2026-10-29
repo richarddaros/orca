@@ -75,6 +75,13 @@ essa ordem; os status continuam atualizando normalmente.
     do card de baixo. Soltar no meio de um card continua aninhando
     (linhagem), e os grupos de status continuam mudando o status.
   - Uma seção cheia (500) não aceita o drop e nada muda.
+  - Soltar onde não há linha sob o ponteiro, a até 6 px do último destino
+    mostrado na prévia, usa esse destino.
+  - Um filho de linhagem arrastado ou selecionado sozinho é um card como os
+    outros: entra na seção como membro.
+  - Soltar na lista uma seleção que saiu de uma seção tira da seção, entre os
+    cards arrastados, todo membro de qualquer seção personalizada, nunca os
+    fixados.
 - Os cards de uma seção mostram o chip do projeto antes do título, como os do
   Pinned, porque uma seção mistura projetos mesmo no agrupamento por projeto.
 
@@ -84,8 +91,9 @@ No layout padrão (não compacto, sem o estilo experimental de card), todo card
 de worktree git mostra, na linha de baixo do título, um ícone de pasta e o nome
 da pasta do checkout (por exemplo, `pinfish`), antes do branch ou do "Detached
 HEAD". O caminho completo aparece ao passar o mouse. Um card que não tinha nada
-nessa linha passa a ter a linha só com a pasta. Quando falta espaço, a pasta
-encolhe antes do branch.
+nessa linha passa a ter a linha só com a pasta. Quando falta espaço, a pasta e
+o branch truncam juntos, e a pasta encolhe mais depressa (peso 3 contra 1): ela
+perde mais em proporção, mas o branch também perde espaço.
 
 Ao contrário do resto deste doc, isso não depende das seções: vale desde a
 primeira abertura, em todo card git do layout padrão, mesmo para quem nunca
@@ -111,6 +119,8 @@ criou uma seção.
 - Folder workspaces não têm o menu de seção nesta entrega. Soltos no Pinned,
   são fixados pelo upstream mas não guardam a posição: entram no fim do Pinned.
 - O fallback de `worktree-reveal-group-keys` não conhece as seções.
+- Quanto a pasta e o branch truncam no card estreito não tem teste: depende de
+  layout real, que o teste unitário não calcula e o e2e não mede.
 - Recolher uma seção vale para todos os hosts.
 - Mover e subir uma seção contam o Pinned mesmo quando ele está escondido por
   não ter nenhum workspace fixado.
@@ -191,7 +201,9 @@ recebe as seções. O app do celular também não.
   sidebar (também acima ou abaixo dela), dentro da origem e antes do primeiro
   uso (fica com o upstream, sem linha de inserção), da seção para a lista (sai
   da seção, nunca um fixado), filhos de linhagem que não viram membros, drop no
-  board (fica com o upstream) e linhagem antes da seção.
+  board (fica com o upstream), linhagem antes da seção, o limite exato de 8 px
+  do vão, o alvo da prévia a até 6 px quando não há linha sob o ponteiro e a
+  ordem de uma seleção múltipla, com filho de linhagem arrastado sozinho.
 - `src/renderer/src/components/sidebar/custom-sections/custom-section-drag-reorder.test.ts`:
   o arrasto resolve cada card para a chave do membro da seção, mesmo com um
   gêmeo de outro host na tela.
