@@ -24,9 +24,13 @@ const store = vi.hoisted(() => {
   return state
 })
 
-const board = vi.hoisted(() => ({
-  commitTarget: { status: null as string | null, isPinDrop: false }
-}))
+const board = vi.hoisted(() => {
+  const commitTarget: { status: string | null; isPinDrop: boolean } = {
+    status: null,
+    isPinDrop: false
+  }
+  return { commitTarget }
+})
 
 vi.mock('@/store', () => ({ useAppStore: { getState: () => store } }))
 vi.mock('../workspace-kanban-sidebar-drop', () => ({
@@ -52,7 +56,9 @@ vi.mock('../worktree-list/drag/dragged-worktree-copies', () => ({
             ? [{ id: 'folder:f1', hostId: 'local', isPinned: false }]
             : id === 'child'
               ? [{ id: 'child', hostId: 'local', isPinned: false }]
-              : []
+              : id === 'q'
+                ? [{ id: 'q', hostId: 'local', isPinned: false }]
+                : []
   })
 }))
 vi.mock('../visible-worktrees', () => ({
@@ -60,7 +66,8 @@ vi.mock('../visible-worktrees', () => ({
     { id: 'z', executionHostId: 'local' },
     { id: 'c', executionHostId: 'local' },
     { id: 'b', executionHostId: 'ssh:box' },
-    { id: 'b', executionHostId: 'local' }
+    { id: 'b', executionHostId: 'local' },
+    { id: 'p', executionHostId: 'local' }
   ]
 }))
 
@@ -86,6 +93,17 @@ const pinnedTitle = element({
   'data-worktree-virtual-row-key': 'hdr:pinned'
 })
 pinnedTitle.append(element({ 'data-workspace-pin-drop-target': '' }))
+// A Pinned card inside a status group also carries the upstream status drop target.
+const pinnedCard = element({
+  'data-worktree-section-key': 'pinned',
+  'data-worktree-drag-group-key': 'pinned',
+  'data-workspace-status-drop-target': '',
+  'data-workspace-status': 'in-review'
+})
+const repoTitle = element({
+  'data-worktree-sticky-header': '',
+  'data-worktree-virtual-row-key': 'hdr:repo:r1'
+})
 const statusTitle = element({
   'data-worktree-sticky-header': '',
   'data-worktree-virtual-row-key': 'hdr:workspace-status:pinned'
@@ -107,7 +125,9 @@ container.append(
   statusTitle,
   repoCard,
   collapsedTitle,
-  emptyTitle
+  emptyTitle,
+  pinnedCard,
+  repoTitle
 )
 
 function rect(top: number, bottom: number): DOMRect {
@@ -481,16 +501,142 @@ describe('custom section drop', () => {
       { id: 'child', hostId: 'local' }
     ]
     commitCustomSectionDrop({
-      drag: makeDrag('repo:r1', ['child', 'a'], copies),
+      drag: makeDrag('repo:r1', ['a', 'child'], copies),
       ctx: makeCtx(),
       x: 50,
       y: 180
     })
     const [stored] = store.dropWorkspacesIntoCustomSection.mock.calls[0]!
+    // Sorted by key it would be local|child first; the drag order wins.
     expect(stored.map((workspace: { key: string }) => workspace.key)).toEqual([
-      'local|child',
-      'ssh:box|a'
+      'ssh:box|a',
+      'local|child'
     ])
+  })
+
+  it('ignores a section card past the top edge when the pointer is above the sidebar', () => {
+    vi.spyOn(sectionCard, 'getBoundingClientRect').mockReturnValue(rect(-50, -4))
+    pointAt(container)
+    expect(
+      commitCustomSectionDrop({ drag: makeDrag('repo:r1'), ctx: makeCtx(), x: 50, y: -2 })
+    ).toBe(false)
+    expect(store.dropWorkspacesIntoCustomSection).not.toHaveBeenCalled()
+  })
+
+  it('takes a drop on a Pinned card for Pinned, without the status of that card', () => {
+    vi.spyOn(pinnedCard, 'getBoundingClientRect').mockReturnValue(rect(300, 355))
+    pointAt(pinnedCard)
+    const ctx = makeCtx({
+      worktreeDragUnitGroups: [
+        { key: 'pinned', worktreeIds: ['p'], units: [{ worktreeId: 'p', worktreeIds: ['p'] }] }
+      ],
+      computeWorktreeGroupDrop: ({ groupKey }) =>
+        groupKey === 'pinned'
+          ? {
+              dropIndex: 0,
+              dropIndicatorY: 300,
+              previewOffsetsByWorktreeId: new Map(),
+              dropAnchorId: 'p'
+            }
+          : null
+    })
+    commitWorktreePointerDrop({
+      event: new PointerEvent('pointerup', { clientX: 50, clientY: 320 }),
+      drag: makeDrag('repo:r1'),
+      ctx,
+      onWorkspaceBoardDragPreviewCommit: vi.fn(),
+      onDropWorktreesOnWorkspaceBoard: vi.fn()
+    })
+    expect(ctx.onPinWorktrees).toHaveBeenCalledWith(['a'])
+    expect(store.dropWorkspacesIntoCustomSection).toHaveBeenCalledWith(
+      [{ key: 'ssh:box|a' }],
+      'pinned',
+      'local|p'
+    )
+    expect(ctx.onMoveWorktreesToStatus).not.toHaveBeenCalled()
+    expect(ctx.onMoveWorktreesToStatusAtIndex).not.toHaveBeenCalled()
+  })
+
+  it('takes a section card dropped on a list title out of its section', () => {
+    pointAt(repoTitle)
+    commitCustomSectionDrop({
+      drag: makeDrag('custom-section:s1', ['a', 'p']),
+      ctx: makeCtx(),
+      x: 50,
+      y: 400
+    })
+    expect(store.removeWorkspaceFromCustomSection).toHaveBeenCalledTimes(1)
+    expect(store.removeWorkspaceFromCustomSection).toHaveBeenCalledWith(
+      expect.objectContaining({ key: 'ssh:box|a' })
+    )
+  })
+
+  it('takes every dragged member of any user section out when dropped on the list', () => {
+    pointAt(repoCard)
+    // `q` belongs to the other section; the selection started in s1.
+    commitCustomSectionDrop({
+      drag: makeDrag('custom-section:s1', ['a', 'q']),
+      ctx: makeCtx(),
+      x: 50,
+      y: 400
+    })
+    expect(store.removeWorkspaceFromCustomSection).toHaveBeenCalledTimes(2)
+    expect(store.removeWorkspaceFromCustomSection).toHaveBeenCalledWith(
+      expect.objectContaining({ key: 'ssh:box|a' })
+    )
+    expect(store.removeWorkspaceFromCustomSection).toHaveBeenCalledWith(
+      expect.objectContaining({ key: 'local|q' })
+    )
+  })
+
+  it('anchors the drop on the shown card when the section has no drag units', () => {
+    pointAt(sectionCard)
+    const ctx = makeCtx({
+      worktreeDragUnitGroups: [],
+      computeWorktreeGroupDrop: () => ({
+        dropIndex: 1,
+        dropIndicatorY: 120,
+        previewOffsetsByWorktreeId: new Map(),
+        dropAnchorId: 'b'
+      })
+    })
+    commitCustomSectionDrop({ drag: makeDrag('repo:r1'), ctx, x: 50, y: 180 })
+    expect(store.dropWorkspacesIntoCustomSection).toHaveBeenCalledWith(
+      expect.any(Array),
+      'custom-section:s1',
+      'local|b'
+    )
+  })
+
+  it('leaves a folder-only drag to upstream on user sections but still pins it on Pinned', () => {
+    const folderDrag = () => makeDrag('repo:r1', ['folder:f1'])
+    let state: WorktreeRowDragState = WORKTREE_ROW_DRAG_INITIAL_STATE
+    const setWorktreeDragState = vi.fn((update: React.SetStateAction<WorktreeRowDragState>) => {
+      state = typeof update === 'function' ? update(state) : update
+    })
+
+    for (const target of [sectionCard, sectionTitle]) {
+      pointAt(target)
+      expect(
+        previewCustomSectionDrop({
+          drag: folderDrag(),
+          ctx: makeCtx(),
+          setWorktreeDragState,
+          setDragOverStatus: vi.fn(),
+          setPinDragOver: vi.fn()
+        })
+      ).toBe(false)
+      expect(commitCustomSectionDrop({ drag: folderDrag(), ctx: makeCtx(), x: 50, y: 180 })).toBe(
+        false
+      )
+    }
+    expect(setWorktreeDragState).not.toHaveBeenCalled()
+    expect(store.dropWorkspacesIntoCustomSection).not.toHaveBeenCalled()
+
+    pointAt(pinnedTitle)
+    const ctx = makeCtx()
+    expect(commitCustomSectionDrop({ drag: folderDrag(), ctx, x: 50, y: 90 })).toBe(true)
+    expect(ctx.onPinWorktrees).toHaveBeenCalledWith(['folder:f1'])
   })
 
   it('leaves a drop on the board to upstream while sections are active', () => {

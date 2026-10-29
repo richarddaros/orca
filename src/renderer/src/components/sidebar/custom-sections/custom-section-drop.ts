@@ -136,14 +136,24 @@ function getHit(args: SectionDropArgs): GroupHit {
   return container ? getGroupAt(container, args.x, args.y) : null
 }
 
+/** Folder workspaces have no section actions yet, so a folder-only drag leaves user-section drops to upstream. */
+function isFolderOnlyDrag(drag: WorktreePointerDrag): boolean {
+  return drag.draggedIds.every((worktreeId) => parseWorkspaceKey(worktreeId)?.type === 'folder')
+}
+
 function findSectionDropTarget(args: SectionDropArgs, hit: GroupHit): SectionDropTarget | null {
   const container = args.ctx.scrollRef.current
   const computeGroupDrop = args.ctx.computeWorktreeGroupDrop
   if (!useAppStore.getState().customSidebarSections || !container || !computeGroupDrop) {
     return null
   }
+  const folderOnly = isFolderOnlyDrag(args.drag)
+  const takesDrop = (groupKey: string): boolean =>
+    groupKey !== args.drag.sourceGroupKey &&
+    isSectionGroupKey(groupKey) &&
+    !(folderOnly && groupKey !== PINNED_GROUP_KEY)
   if (hit?.header) {
-    return hit.groupKey !== args.drag.sourceGroupKey && isSectionGroupKey(hit.groupKey)
+    return takesDrop(hit.groupKey)
       ? {
           groupKey: hit.groupKey,
           preview: getTitleInsertionPreview(container, hit.header),
@@ -155,7 +165,7 @@ function findSectionDropTarget(args: SectionDropArgs, hit: GroupHit): SectionDro
   const groupKey = hit
     ? hit.groupKey
     : getSectionNextToGap(container, args.drag.sourceGroupKey, args.x, args.y)
-  if (!groupKey || groupKey === args.drag.sourceGroupKey || !isSectionGroupKey(groupKey)) {
+  if (!groupKey || !takesDrop(groupKey)) {
     return null
   }
   const preview = computeGroupDrop({

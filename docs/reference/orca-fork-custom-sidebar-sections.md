@@ -75,6 +75,9 @@ essa ordem; os status continuam atualizando normalmente.
     do card de baixo. Soltar no meio de um card continua aninhando
     (linhagem), e os grupos de status continuam mudando o status.
   - Uma seção cheia (500) não aceita o drop e nada muda.
+  - Uma seleção só de folder workspaces não mostra a linha de inserção nas
+    seções personalizadas e o drop segue o upstream; no Pinned continua sendo
+    fixada pelo upstream.
   - Soltar onde não há linha sob o ponteiro, a até 6 px do último destino
     mostrado na prévia, usa esse destino.
   - Um filho de linhagem arrastado ou selecionado sozinho é um card como os
@@ -203,7 +206,10 @@ recebe as seções. O app do celular também não.
   da seção, nunca um fixado), filhos de linhagem que não viram membros, drop no
   board (fica com o upstream), linhagem antes da seção, o limite exato de 8 px
   do vão, o alvo da prévia a até 6 px quando não há linha sob o ponteiro e a
-  ordem de uma seleção múltipla, com filho de linhagem arrastado sozinho.
+  ordem de uma seleção múltipla, com filho de linhagem arrastado sozinho, drop em
+  card do Pinned (fixa e guarda a posição sem mudar o status do card), título da
+  lista (tira da seção), membro de outra seção numa seleção solta na lista,
+  seção sem unidades de arrasto e seleção só de folder workspaces.
 - `src/renderer/src/components/sidebar/custom-sections/custom-section-drag-reorder.test.ts`:
   o arrasto resolve cada card para a chave do membro da seção, mesmo com um
   gêmeo de outro host na tela.
