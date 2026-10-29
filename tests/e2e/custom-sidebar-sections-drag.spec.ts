@@ -105,6 +105,7 @@ async function pin(page: Page, worktreeIds: string[]): Promise<void> {
 test('cards drag into, between and out of user sections, and Pinned cards leave Pinned', async ({
   orcaPage
 }, testInfo) => {
+  // Seeds a repo with several workspaces and drives each drag with the real mouse in a hidden window.
   test.setTimeout(180_000)
   // Why: a hidden test window freezes the row-move animation after a cross-group drop, leaving cards mid-flight under the pointer.
   await orcaPage.emulateMedia({ reducedMotion: 'reduce' })
@@ -203,6 +204,7 @@ test('cards drag into, between and out of user sections, and Pinned cards leave 
 test('grouped by status, section cards take drops and a card dropped back on the list leaves', async ({
   orcaPage
 }, testInfo) => {
+  // Seeds a repo with several workspaces and drives each drag with the real mouse in a hidden window.
   test.setTimeout(180_000)
   await orcaPage.emulateMedia({ reducedMotion: 'reduce' })
   await waitForSessionReady(orcaPage)

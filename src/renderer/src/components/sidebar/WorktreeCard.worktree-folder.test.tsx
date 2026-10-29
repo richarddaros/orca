@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server'
 import type { ReactNode } from 'react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { GlobalSettings } from '../../../../shared/global-settings-types'
 import type { Repo } from '../../../../shared/repo-types'
 import type { Worktree } from '../../../../shared/worktree/types'
@@ -97,61 +97,50 @@ async function renderCard(worktree: Worktree, cardRepo: Repo = repo): Promise<st
 }
 
 describe('WorktreeCard worktree folder', () => {
+  // The first import loads the whole card tree; warming it here keeps that cost out of every test's own timeout.
+  beforeAll(async () => {
+    await import('./WorktreeCard')
+  }, WORKTREE_CARD_IMPORT_TIMEOUT_MS)
+
   beforeEach(() => {
     settings = { compactWorktreeCards: false, experimentalNewWorktreeCardStyle: false }
   })
 
-  it(
-    'names the checkout folder under the title, ahead of the git identity',
-    async () => {
-      const markup = await renderCard(makeWorktree())
+  it('names the checkout folder under the title, ahead of the git identity', async () => {
+    const markup = await renderCard(makeWorktree())
 
-      expect(markup).toContain('title="/home/me/orca/workspaces/orca/pinfish"')
-      expect(markup).toMatch(/data-worktree-card-folder=""[^]*>pinfish<\/span>/)
-      expect(markup.indexOf('data-worktree-card-folder')).toBeLessThan(
-        markup.indexOf('Detached HEAD')
-      )
-    },
-    WORKTREE_CARD_IMPORT_TIMEOUT_MS
-  )
+    expect(markup).toContain('title="/home/me/orca/workspaces/orca/pinfish"')
+    expect(markup).toMatch(/data-worktree-card-folder=""[^]*>pinfish<\/span>/)
+    expect(markup.indexOf('data-worktree-card-folder')).toBeLessThan(
+      markup.indexOf('Detached HEAD')
+    )
+  })
 
-  it(
-    'names the folder ahead of the branch',
-    async () => {
-      const markup = await renderCard(makeWorktree({ branch: 'refs/heads/feat/branch-marker' }))
-      const row = markup.slice(markup.indexOf('data-worktree-card-meta-row'))
+  it('names the folder ahead of the branch', async () => {
+    const markup = await renderCard(makeWorktree({ branch: 'refs/heads/feat/branch-marker' }))
+    const row = markup.slice(markup.indexOf('data-worktree-card-meta-row'))
 
-      expect(row).toContain('branch-marker')
-      expect(row.indexOf('data-worktree-card-folder')).toBeLessThan(row.indexOf('branch-marker'))
-    },
-    WORKTREE_CARD_IMPORT_TIMEOUT_MS
-  )
+    expect(row).toContain('branch-marker')
+    expect(row.indexOf('data-worktree-card-folder')).toBeLessThan(row.indexOf('branch-marker'))
+  })
 
-  it(
-    'adds the row under the title for a card that had nothing else to show there',
-    async () => {
-      const markup = await renderCard(makeWorktree({ head: '' }))
+  it('adds the row under the title for a card that had nothing else to show there', async () => {
+    const markup = await renderCard(makeWorktree({ head: '' }))
 
-      expect(markup).not.toContain('Detached HEAD')
-      expect(markup).toContain('data-worktree-card-meta-row=""')
-      expect(markup).toMatch(/data-worktree-card-folder=""[^]*>pinfish<\/span>/)
-    },
-    WORKTREE_CARD_IMPORT_TIMEOUT_MS
-  )
+    expect(markup).not.toContain('Detached HEAD')
+    expect(markup).toContain('data-worktree-card-meta-row=""')
+    expect(markup).toMatch(/data-worktree-card-folder=""[^]*>pinfish<\/span>/)
+  })
 
-  it(
-    'keeps compact cards, the new card style and folder workspaces as they were',
-    async () => {
-      settings = { compactWorktreeCards: true, experimentalNewWorktreeCardStyle: false }
-      expect(await renderCard(makeWorktree())).not.toContain('data-worktree-card-folder')
+  it('keeps compact cards, the new card style and folder workspaces as they were', async () => {
+    settings = { compactWorktreeCards: true, experimentalNewWorktreeCardStyle: false }
+    expect(await renderCard(makeWorktree())).not.toContain('data-worktree-card-folder')
 
-      settings = { compactWorktreeCards: false, experimentalNewWorktreeCardStyle: true }
-      expect(await renderCard(makeWorktree())).not.toContain('data-worktree-card-folder')
+    settings = { compactWorktreeCards: false, experimentalNewWorktreeCardStyle: true }
+    expect(await renderCard(makeWorktree())).not.toContain('data-worktree-card-folder')
 
-      settings = { compactWorktreeCards: false, experimentalNewWorktreeCardStyle: false }
-      const folderMarkup = await renderCard(makeWorktree(), { ...repo, kind: 'folder' })
-      expect(folderMarkup).not.toContain('data-worktree-card-folder')
-    },
-    WORKTREE_CARD_IMPORT_TIMEOUT_MS
-  )
+    settings = { compactWorktreeCards: false, experimentalNewWorktreeCardStyle: false }
+    const folderMarkup = await renderCard(makeWorktree(), { ...repo, kind: 'folder' })
+    expect(folderMarkup).not.toContain('data-worktree-card-folder')
+  })
 })
