@@ -93,13 +93,16 @@ const pinnedTitle = element({
   'data-worktree-virtual-row-key': 'hdr:pinned'
 })
 pinnedTitle.append(element({ 'data-workspace-pin-drop-target': '' }))
-// A Pinned card inside a status group also carries the upstream status drop target.
-const pinnedCard = element({
-  'data-worktree-section-key': 'pinned',
-  'data-worktree-drag-group-key': 'pinned',
+// Like the real producer: in a status group the virtual row wrapping a Pinned card carries the upstream status drop target.
+const pinnedRow = element({
   'data-workspace-status-drop-target': '',
   'data-workspace-status': 'in-review'
 })
+const pinnedCard = element({
+  'data-worktree-section-key': 'pinned',
+  'data-worktree-drag-group-key': 'pinned'
+})
+pinnedRow.append(pinnedCard)
 const repoTitle = element({
   'data-worktree-sticky-header': '',
   'data-worktree-virtual-row-key': 'hdr:repo:r1'
@@ -126,7 +129,7 @@ container.append(
   repoCard,
   collapsedTitle,
   emptyTitle,
-  pinnedCard,
+  pinnedRow,
   repoTitle
 )
 
@@ -632,6 +635,21 @@ describe('custom section drop', () => {
     }
     expect(setWorktreeDragState).not.toHaveBeenCalled()
     expect(store.dropWorkspacesIntoCustomSection).not.toHaveBeenCalled()
+
+    // Upstream pins it at the end of Pinned, so no insertion line is drawn there either.
+    for (const target of [pinnedTitle, pinnedCard]) {
+      pointAt(target)
+      expect(
+        previewCustomSectionDrop({
+          drag: folderDrag(),
+          ctx: makeCtx(),
+          setWorktreeDragState,
+          setDragOverStatus: vi.fn(),
+          setPinDragOver: vi.fn()
+        })
+      ).toBe(false)
+    }
+    expect(setWorktreeDragState).not.toHaveBeenCalled()
 
     pointAt(pinnedTitle)
     const ctx = makeCtx()

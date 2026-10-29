@@ -1,6 +1,6 @@
 # Seções personalizadas na sidebar (fork)
 
-<!-- updated: 2026-10-28 -->
+<!-- updated: 2026-10-29 -->
 
 Recurso só do fork `richarddaros/orca` (issue #10). Na lista **Projects** da
 sidebar, o usuário cria seções com nome (por exemplo, "MCF") e coloca nelas
@@ -76,8 +76,8 @@ essa ordem; os status continuam atualizando normalmente.
     (linhagem), e os grupos de status continuam mudando o status.
   - Uma seção cheia (500) não aceita o drop e nada muda.
   - Uma seleção só de folder workspaces não mostra a linha de inserção nas
-    seções personalizadas e o drop segue o upstream; no Pinned continua sendo
-    fixada pelo upstream.
+    seções personalizadas e o drop segue o upstream; no Pinned também não mostra
+    a linha (a posição não é guardada) e continua sendo fixada pelo upstream.
   - Soltar onde não há linha sob o ponteiro, a até 6 px do último destino
     mostrado na prévia, usa esse destino.
   - Um filho de linhagem arrastado ou selecionado sozinho é um card como os

@@ -187,7 +187,8 @@ export function previewCustomSectionDrop(args: {
   const { drag } = args
   const position = { drag, ctx: args.ctx, x: drag.currentX, y: drag.currentY }
   const target = findSectionDropTarget(position, getHit(position))
-  if (!target) {
+  // Why: upstream pins a folder-only drag at the end of Pinned, so an insertion line would promise a position it ignores.
+  if (!target || (target.groupKey === PINNED_GROUP_KEY && isFolderOnlyDrag(drag))) {
     trackedTargets.delete(drag)
     return false
   }
