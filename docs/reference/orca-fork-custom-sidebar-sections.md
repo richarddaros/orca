@@ -1,6 +1,6 @@
 # Seções personalizadas na sidebar (fork)
 
-<!-- updated: 2026-10-26 -->
+<!-- updated: 2026-10-28 -->
 
 Recurso só do fork `richarddaros/orca` (issue #10). Na lista **Projects** da
 sidebar, o usuário cria seções com nome (por exemplo, "MCF") e coloca nelas
@@ -86,6 +86,10 @@ da pasta do checkout (por exemplo, `pinfish`), antes do branch ou do "Detached
 HEAD". O caminho completo aparece ao passar o mouse. Um card que não tinha nada
 nessa linha passa a ter a linha só com a pasta. Quando falta espaço, a pasta
 encolhe antes do branch.
+
+Ao contrário do resto deste doc, isso não depende das seções: vale desde a
+primeira abertura, em todo card git do layout padrão, mesmo para quem nunca
+criou uma seção.
 
 - Vale para todo lugar que usa o mesmo card: a lista inteira (não só as
   seções), o quadro de status (board) e a lista de worktrees do painel de
@@ -174,8 +178,8 @@ recebe as seções. O app do celular também não.
 - `src/renderer/src/store/slices/custom-sidebar-sections.test.ts`: nada é
   gravado antes do primeiro uso; leitura do disco antes da primeira gravação, e
   nenhuma gravação se ela falhar; Pin/Unpin ao mover; Pinned não apagável;
-  arrasto assumido só nas seções; eco de sincronização durante escrita;
-  bloqueio no cliente web.
+  arrasto assumido só nas seções; seção cheia não faz Unpin; eco de
+  sincronização durante escrita; bloqueio no cliente web.
 - `src/main/runtime/rpc/methods/client-ui-fork-local-fields.test.ts`: o campo
   não entra pelo `ui.set` nem sai pelo `ui.get` de clientes pareados.
 - `src/renderer/src/components/sidebar/custom-sections/custom-section-drop.test.ts`:
@@ -183,10 +187,11 @@ recebe as seções. O app do celular também não.
   sem trocar pelo gêmeo de outro host), no título (topo, com a linha embaixo do
   título, inclusive com host no título), no título do Pinned (Pin pelo upstream)
   e não num status chamado "pinned", título de seção recolhida ou vazia, folder
-  fora da seção (só o Pin do upstream), vão de outro grupo ou fora da sidebar,
-  dentro da origem e
-  antes do primeiro uso (fica com o upstream), da seção para a lista (sai da
-  seção, nunca um fixado) e linhagem antes da seção.
+  fora da seção (só o Pin do upstream), vão de outro grupo, ponteiro fora da
+  sidebar (também acima ou abaixo dela), dentro da origem e antes do primeiro
+  uso (fica com o upstream, sem linha de inserção), da seção para a lista (sai
+  da seção, nunca um fixado), filhos de linhagem que não viram membros, drop no
+  board (fica com o upstream) e linhagem antes da seção.
 - `src/renderer/src/components/sidebar/custom-sections/custom-section-drag-reorder.test.ts`:
   o arrasto resolve cada card para a chave do membro da seção, mesmo com um
   gêmeo de outro host na tela.
@@ -200,8 +205,8 @@ recebe as seções. O app do celular também não.
   escondida, a animação de linhas do upstream congela e deixa cards sob o
   ponteiro.
 - `src/renderer/src/components/sidebar/WorktreeCard.worktree-folder.test.tsx`:
-  o card padrão mostra a pasta antes do "Detached HEAD" e cria a linha de baixo
-  num card que não tinha nada nela; compacto, estilo experimental e folder
+  o card padrão mostra a pasta antes do branch e do "Detached HEAD" e cria a
+  linha de baixo num card que não tinha nada nela; compacto, estilo experimental e folder
   workspace não mudam.
 - `tests/e2e/custom-sidebar-sections.spec.ts`: no Orca real, com sort Recent,
   prova primeiro que a atividade reordena a lista normal e depois que a seção

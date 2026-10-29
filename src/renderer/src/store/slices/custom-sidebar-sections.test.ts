@@ -152,6 +152,28 @@ describe('custom sidebar sections slice', () => {
     expect(membersOf(id)).toEqual(['local|b'])
   })
 
+  it('does not unpin a card dropped into a full section', () => {
+    const { store, setPinned } = hydratedStore()
+    const members = Array.from({ length: 500 }, (_, i) => `local|m${i}`)
+    store.setState({
+      customSidebarSections: {
+        version: 1,
+        sections: [
+          { id: 'pinned', name: '', members: [] },
+          { id: 'full', name: 'Full', members }
+        ]
+      }
+    })
+
+    store
+      .getState()
+      .dropWorkspacesIntoCustomSection([pinnedWorkspace], getCustomSectionGroupKey('full'), null)
+
+    expect(setPinned).not.toHaveBeenCalled()
+    expect(store.getState().customSidebarSections?.sections[1]?.members).toEqual(members)
+    expect(uiSet).not.toHaveBeenCalled()
+  })
+
   it('ignores a sync echo while a newer local write is in flight', async () => {
     const { store } = hydratedStore()
     const id = (await store.getState().createCustomSection('MCF'))!

@@ -70,10 +70,13 @@ function getHeaderGroupKey(header: Element): string | null {
   return sectionAt === -1 ? rest : rest.slice(sectionAt)
 }
 
+function isPointInRect(rect: DOMRect, x: number, y: number): boolean {
+  return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom
+}
+
 /** The list group under the pointer: a title's group key or a card's section key. */
 function getGroupAt(container: HTMLElement, x: number, y: number): GroupHit {
-  const rect = container.getBoundingClientRect()
-  if (x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) {
+  if (!isPointInRect(container.getBoundingClientRect(), x, y)) {
     return null
   }
   const target = document.elementFromPoint(x, y)
@@ -98,8 +101,8 @@ function getSectionNextToGap(
   x: number,
   y: number
 ): string | null {
-  const bounds = container.getBoundingClientRect()
-  if (x < bounds.left || x > bounds.right) {
+  // Why: virtualized cards in overscan sit past the container edge; a drop outside the sidebar is not theirs.
+  if (!isPointInRect(container.getBoundingClientRect(), x, y)) {
     return null
   }
   for (const row of container.querySelectorAll<HTMLElement>('[data-worktree-drag-group-key]')) {

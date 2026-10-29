@@ -116,6 +116,18 @@ describe('WorktreeCard worktree folder', () => {
   )
 
   it(
+    'names the folder ahead of the branch',
+    async () => {
+      const markup = await renderCard(makeWorktree({ branch: 'refs/heads/feat/branch-marker' }))
+      const row = markup.slice(markup.indexOf('data-worktree-card-meta-row'))
+
+      expect(row).toContain('branch-marker')
+      expect(row.indexOf('data-worktree-card-folder')).toBeLessThan(row.indexOf('branch-marker'))
+    },
+    WORKTREE_CARD_IMPORT_TIMEOUT_MS
+  )
+
+  it(
     'adds the row under the title for a card that had nothing else to show there',
     async () => {
       const markup = await renderCard(makeWorktree({ head: '' }))
