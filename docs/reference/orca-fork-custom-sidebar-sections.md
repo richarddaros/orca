@@ -75,6 +75,24 @@ essa ordem; os status continuam atualizando normalmente.
     do card de baixo. Soltar no meio de um card continua aninhando
     (linhagem), e os grupos de status continuam mudando o status.
   - Uma seção cheia (500) não aceita o drop e nada muda.
+- Os cards de uma seção mostram o chip do projeto antes do título, como os do
+  Pinned, porque uma seção mistura projetos mesmo no agrupamento por projeto.
+
+## Pasta do worktree no card
+
+No layout padrão (não compacto, sem o estilo experimental de card), todo card
+de worktree git mostra, na linha de baixo do título, um ícone de pasta e o nome
+da pasta do checkout (por exemplo, `pinfish`), antes do branch ou do "Detached
+HEAD". O caminho completo aparece ao passar o mouse. Um card que não tinha nada
+nessa linha passa a ter a linha só com a pasta. Quando falta espaço, a pasta
+encolhe antes do branch.
+
+- Vale para todo lugar que usa o mesmo card: a lista inteira (não só as
+  seções), o quadro de status (board) e a lista de worktrees do painel de
+  folder workspace.
+- Folder workspaces já mostravam a pasta e continuam iguais. O layout compacto
+  e o estilo experimental não mudam.
+- O app do celular tem cards próprios e não muda.
 
 ## Limitações conhecidas
 
@@ -115,6 +133,7 @@ Módulos do fork:
 | `src/shared/custom-sidebar-sections/custom-section-order.ts`                 | Ordem dentro de uma seção: posição salva, filhos por criação, ordem de tela             |
 | `src/renderer/src/store/slices/custom-sidebar-sections.ts`                   | Slice do store, ativação no primeiro uso, gravação e Pin/Unpin                          |
 | `src/renderer/src/components/sidebar/custom-sections/`                       | Botão, diálogos, menu ⋯ da seção, menu do card e arrasto dentro da seção                |
+| `src/renderer/src/components/sidebar/worktree-card-folder-label.tsx`         | Ícone e nome da pasta do worktree na linha de baixo do título do card                   |
 | `src/renderer/src/components/sidebar/custom-sections/custom-section-drop.ts` | Arrasto entre grupos: alvo sob o ponteiro, linha de inserção, drop e saída para a lista |
 
 Pontos de encaixe em arquivos do upstream (conferir em todo sync que mexer neles):
@@ -133,6 +152,9 @@ Pontos de encaixe em arquivos do upstream (conferir em todo sync que mexer neles
 | `src/renderer/src/components/sidebar/worktree-list/drag/use-session.ts`                                       | `computeWorktreeGroupDrop` (qualquer grupo); `computeWorktreeStatusDrop` delega para ele                                                 |
 | `src/renderer/src/components/sidebar/worktree-list/drag/drop-commit-context.ts`, `use-drop-commit-context.ts` | Campo opcional `computeWorktreeGroupDrop` no contexto do drop                                                                            |
 | `src/renderer/src/components/sidebar/ProjectGroupNameDialog.tsx`                                              | Prop opcional `nameLabel`; sem ela o rótulo continua "Group Name"                                                                        |
+| `src/renderer/src/components/sidebar/worktree-list/rows/item-row.tsx`                                         | `inPinnedSection` também nas seções `custom-section:*`, para o chip do projeto                                                           |
+| `src/renderer/src/components/sidebar/worktree-card-presentation.tsx`                                          | `showWorktreeFolder`, que também conta como conteúdo da linha de baixo do título                                                         |
+| `src/renderer/src/components/sidebar/worktree-card-meta-row.tsx`                                              | `WorktreeCardFolderLabel` antes do branch ou do "Detached HEAD"                                                                          |
 | `src/renderer/src/store/index.ts`, `types.ts`, `slices/store-test-helpers.ts`                                 | Registro do slice                                                                                                                        |
 | `src/renderer/src/store/slices/ui/ui-slice-hydration-actions.ts`                                              | Hidratação do campo                                                                                                                      |
 | `src/shared/persisted-ui-state-types.ts`, `pairing-local-ui-fields.ts`                                        | Campo persistido e bloqueio para pareados                                                                                                |
@@ -177,7 +199,13 @@ recebe as seções. O app do celular também não.
   seção e muda o status. Os testes emulam `prefers-reduced-motion`: na janela
   escondida, a animação de linhas do upstream congela e deixa cards sob o
   ponteiro.
+- `src/renderer/src/components/sidebar/WorktreeCard.worktree-folder.test.tsx`:
+  o card padrão mostra a pasta antes do "Detached HEAD" e cria a linha de baixo
+  num card que não tinha nada nela; compacto, estilo experimental e folder
+  workspace não mudam.
 - `tests/e2e/custom-sidebar-sections.spec.ts`: no Orca real, com sort Recent,
   prova primeiro que a atividade reordena a lista normal e depois que a seção
   "MCF" criada pelo botão mantém a ordem escolhida; um segundo teste fecha e
-  reabre o app e confere que a seção volta com o workspace.
+  reabre o app e confere que a seção volta com o workspace; um terceiro, no
+  agrupamento por projeto, confere que o card sem chip embaixo do projeto ganha
+  o chip na seção e mostra o nome da pasta do worktree.
