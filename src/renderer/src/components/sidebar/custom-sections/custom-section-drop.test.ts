@@ -2,6 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { CustomSidebarSectionsState } from '../../../../../shared/custom-sidebar-sections/custom-sidebar-sections-state'
 import type { WorktreeDropCommitContext } from '../worktree-list/drag/drop-commit-context'
+import { composeWorktreeHostIdentity } from '../../../../../shared/worktree/host-qualified-identity'
 import { commitWorktreePointerDrop } from '../worktree-list/drag/pointer-commit'
 import {
   WORKTREE_ROW_DRAG_INITIAL_STATE,
@@ -60,15 +61,6 @@ vi.mock('../worktree-list/drag/dragged-worktree-copies', () => ({
                 ? [{ id: 'q', hostId: 'local', isPinned: false }]
                 : []
   })
-}))
-vi.mock('../visible-worktrees', () => ({
-  getVisibleWorktreeShortcutTargets: () => [
-    { id: 'z', executionHostId: 'local' },
-    { id: 'c', executionHostId: 'local' },
-    { id: 'b', executionHostId: 'ssh:box' },
-    { id: 'b', executionHostId: 'local' },
-    { id: 'p', executionHostId: 'local' }
-  ]
 }))
 
 function element(attributes: Record<string, string>): HTMLElement {
@@ -142,6 +134,10 @@ function makeDrag(
   draggedIds: string[] = ['a'],
   draggedCopies: WorktreePointerDrag['draggedCopies'] = [{ id: 'a', hostId: 'ssh:box' }]
 ): WorktreePointerDrag {
+  // Like the real producer: host identity of each dragged copy; a card with no copy listed is local.
+  const draggedKeys = draggedIds.map((id) =>
+    composeWorktreeHostIdentity(draggedCopies.find((copy) => copy.id === id)?.hostId ?? 'local', id)
+  )
   return {
     pointerId: 1,
     sourceRow: document.createElement('div'),
@@ -152,8 +148,10 @@ function makeDrag(
     worktreeId: draggedIds[0]!,
     draggedIds,
     draggedCopies,
+    worktreeKey: draggedKeys[0]!,
     reorderDraggedIds: draggedIds,
-    reorderUnitDraggedIds: draggedIds,
+    reorderDraggedKeys: draggedKeys,
+    reorderUnitDraggedKeys: draggedKeys,
     sourceGroupKey,
     rects: [],
     active: true,
@@ -173,14 +171,16 @@ function makeCtx(overrides: Partial<WorktreeDropCommitContext> = {}): WorktreeDr
     scrollRef: { current: container },
     workspaceStatuses: [],
     worktreeDragGroups: [],
-    // Like the real producer: `worktreeIds` lists unit leaders only; a lineage child (`c`) rides inside its parent's unit.
+    // Like the real producer: members are host identities and `worktreeIds` lists unit leaders only; a lineage
+    // child (`local|c`) rides inside its parent's unit. `ssh:box|b` is a twin of the stored member `local|b`.
     worktreeDragUnitGroups: [
       {
         key: 'custom-section:s1',
-        worktreeIds: ['z', 'b'],
+        worktreeIds: ['local|z', 'ssh:box|b', 'local|b'],
         units: [
-          { worktreeId: 'z', worktreeIds: ['z'] },
-          { worktreeId: 'b', worktreeIds: ['b', 'c'] }
+          { worktreeId: 'local|z', worktreeIds: ['local|z'] },
+          { worktreeId: 'ssh:box|b', worktreeIds: ['ssh:box|b'] },
+          { worktreeId: 'local|b', worktreeIds: ['local|b', 'local|c'] }
         ]
       }
     ],
@@ -192,7 +192,7 @@ function makeCtx(overrides: Partial<WorktreeDropCommitContext> = {}): WorktreeDr
             dropIndex: 1,
             dropIndicatorY: 120,
             previewOffsetsByWorktreeId: new Map(),
-            dropAnchorId: 'c'
+            dropAnchorId: 'local|c'
           }
         : null,
     refreshWorktreeDragSession: () => true,
@@ -531,7 +531,11 @@ describe('custom section drop', () => {
     pointAt(pinnedCard)
     const ctx = makeCtx({
       worktreeDragUnitGroups: [
-        { key: 'pinned', worktreeIds: ['p'], units: [{ worktreeId: 'p', worktreeIds: ['p'] }] }
+        {
+          key: 'pinned',
+          worktreeIds: ['local|p'],
+          units: [{ worktreeId: 'local|p', worktreeIds: ['local|p'] }]
+        }
       ],
       computeWorktreeGroupDrop: ({ groupKey }) =>
         groupKey === 'pinned'
@@ -539,7 +543,7 @@ describe('custom section drop', () => {
               dropIndex: 0,
               dropIndicatorY: 300,
               previewOffsetsByWorktreeId: new Map(),
-              dropAnchorId: 'p'
+              dropAnchorId: 'local|p'
             }
           : null
     })
@@ -600,7 +604,7 @@ describe('custom section drop', () => {
         dropIndex: 1,
         dropIndicatorY: 120,
         previewOffsetsByWorktreeId: new Map(),
-        dropAnchorId: 'b'
+        dropAnchorId: 'local|b'
       })
     })
     commitCustomSectionDrop({ drag: makeDrag('repo:r1'), ctx, x: 50, y: 180 })

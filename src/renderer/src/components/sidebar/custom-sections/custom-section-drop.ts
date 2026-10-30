@@ -11,7 +11,6 @@ import { PINNED_GROUP_KEY } from '../../../../../shared/sidebar-list/group-keys'
 import { getWorktreeHostIdentity } from '../../../../../shared/worktree/host-qualified-identity'
 import { parseWorkspaceKey } from '../../../../../shared/workspace-scope'
 import type { WorkspaceStatus } from '../../../../../shared/worktree/types'
-import { getVisibleWorktreeShortcutTargets } from '../visible-worktrees'
 import { clearWorkspaceKanbanSidebarDropTargetVisual } from '../workspace-kanban-sidebar-drop'
 import type { WorktreeSidebarDropPreview } from '../worktree-sidebar-drop-preview'
 import type { WorktreeDropCommitContext } from '../worktree-list/drag/drop-commit-context'
@@ -22,7 +21,6 @@ import {
   type WorktreePointerDrag,
   type WorktreeRowDragState
 } from '../worktree-list/drag/row-state'
-import { resolveShownSectionKeys } from './custom-section-drag-reorder'
 
 // Fork (richarddaros/orca): dragging a card from another group into Pinned or a user section.
 
@@ -171,7 +169,7 @@ function findSectionDropTarget(args: SectionDropArgs, hit: GroupHit): SectionDro
   const preview = computeGroupDrop({
     pointerY: args.y,
     groupKey,
-    draggedIds: args.drag.reorderDraggedIds
+    draggedKeys: args.drag.reorderDraggedKeys
   })
   return preview ? { groupKey, preview, atTop: false } : null
 }
@@ -226,20 +224,17 @@ function getBeforeKey(args: SectionDropArgs, target: SectionDropTarget): string 
     return section.members[0] ?? null
   }
   const members = new Set(section.members)
-  const shownIds = args.ctx.worktreeDragUnitGroups.find(
+  // Why: the drag groups and the preview anchor already hold host identities, the same keys the section stores.
+  const shownKeys = args.ctx.worktreeDragUnitGroups.find(
     (group) => group.key === target.groupKey
   )?.worktreeIds
-  const anchorId = target.preview.dropAnchorId
-  const shownFromLine = shownIds
-    ? shownIds.slice(target.preview.dropIndex)
-    : anchorId
-      ? [anchorId]
+  const anchorKey = target.preview.dropAnchorId
+  const shownFromLine = shownKeys
+    ? shownKeys.slice(target.preview.dropIndex)
+    : anchorKey
+      ? [anchorKey]
       : []
-  return (
-    resolveShownSectionKeys(shownFromLine, getVisibleWorktreeShortcutTargets(), members).find(
-      (key) => members.has(key)
-    ) ?? null
-  )
+  return shownFromLine.find((key) => members.has(key)) ?? null
 }
 
 /** A user-section card dropped on the regular list leaves its section; upstream still applies the drop. */

@@ -43,7 +43,8 @@ export type WorktreeStatusDropRequest = {
 export type WorktreeGroupDropRequest = {
   pointerY: number
   groupKey: string
-  draggedIds: readonly string[]
+  /** Host identities, as the sidebar's drag groups key their members. */
+  draggedKeys: readonly string[]
 }
 
 export type WorktreeDragSession = ReturnType<typeof useWorktreeDragSession>
@@ -240,7 +241,7 @@ export function useWorktreeDragSession(args: {
       computeWorktreeGroupDrop({
         pointerY: request.pointerY,
         groupKey: getWorkspaceStatusGroupKey(request.status),
-        draggedIds: request.draggedIds
+        draggedKeys: request.draggedKeys
       }),
     [computeWorktreeGroupDrop]
   )
