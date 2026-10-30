@@ -11,6 +11,10 @@ export const UI_STATE_DISPOSITIONS = {
   lastActiveRepoId: notApplicableDisposition(38, 'repoId is kept.'),
   // Fork (richarddaros/orca): a moved workspace leaves its section and returns to the normal list.
   customSidebarSections: notApplicableDisposition(38, 'Section members keep their old host key.'),
+  pendingRuntimeRepoRemovals: notApplicableDisposition(
+    38,
+    'Owed to a paired server; a WSL move only moves local projects.'
+  ),
   lastActiveWorktreeId: moveDisposition(38, { rewriteDesktopCopy: true }),
   manualRepoOrder: moveDisposition(38, {
     rewriteDesktopCopy: true,
@@ -27,11 +31,10 @@ export const UI_STATE_DISPOSITIONS = {
   acknowledgedAgentsByPaneKey: moveDisposition(38, { note: 'Pane keys are kept.' }),
   activityClearedAtByPaneKey: moveDisposition(38, { note: 'Pane keys are kept.' }),
   manuallyUnreadTurnsByPaneKey: moveDisposition(38, { note: 'Pane keys are kept.' }),
-  trustedOrcaHooks: {
-    disposition: 'rewrite-desktop',
-    item: 40,
-    note: 'Kept by repoId; the trust prune must not drop it while the repo is between hosts.'
-  },
+  trustedOrcaHooks: notApplicableDisposition(
+    40,
+    'Kept by repoId, which the move keeps; wsl-moved-repo-ui-retention.ts stops the trust prune dropping it.'
+  ),
   collapsedGroups: {
     disposition: 'rewrite-desktop',
     item: 38,
@@ -64,7 +67,7 @@ export const UI_STATE_DISPOSITIONS = {
   automationHostFilter: {
     disposition: 'rewrite-desktop',
     item: 38,
-    note: "A 'local' filter also covers the WSL host."
+    note: 'Single-select: a filter on this desktop widens to All hosts once, if the move carried automations.'
   },
   jiraQuickFilterState: notApplicableDisposition(38, 'Filters belong to the Jira host.'),
   jiraSavedFilterState: notApplicableDisposition(
@@ -109,6 +112,7 @@ export const UI_STATE_GLOBAL_FIELDS = [
   'editorFontZoomLevel',
   'worktreeCardProperties',
   '_worktreeCardModeDefaulted',
+  'showAgentModels',
   'agentActivityDisplayMode',
   'workspaceStatuses',
   'workspaceBoardOpacity',
@@ -137,6 +141,7 @@ export const UI_STATE_GLOBAL_FIELDS = [
   'usagePercentageDisplayChangeNoticeDismissed',
   'statusBarCompactChangeNoticeDismissed',
   'usageEmptyStateDismissed',
+  'pluginsAlphaNoticeDismissed',
   'codexTerminalServerIsolationNoticeSeen',
   'codexSharedSettingsNoticeSeen',
   'claudeDiffPanelNoticeSeen',

@@ -1,15 +1,19 @@
 import { execFile } from 'node:child_process'
 import type { WebContents } from 'electron'
 import { BrowserError } from './cdp-bridge'
-import {
-  focusedRichTextEditExpression,
-  isExplicitContentEditableResult
-} from './agent-browser-bridge-input'
+import type { CapturedElement } from './cdp-element-capture'
+import { sendGuestCdpCommand } from './guest-cdp-command'
+import { readRecord, readString } from './guest-frame-input-sessions'
 import {
   isTabClosedTransportError,
   pageUnavailableMessageForSession
 } from './agent-browser-bridge-process'
 import { translateResult } from './agent-browser-bridge-result'
+import {
+  AGENT_BROWSER_BATCH_ARGS,
+  agentBrowserBatchInput,
+  agentBrowserResultMintsRefs
+} from './agent-browser-batch-command'
 import { AgentBrowserBridgeTabs } from './agent-browser-bridge-tabs'
 import { assertRemoteCliBrowserAccess } from '../runtime/desktop-browser-bridge/remote-cli-browser-scope'
 import { ORCA_TAB_SESSION_PREFIX } from './agent-browser-orphan-sweep'
@@ -85,19 +89,10 @@ export abstract class AgentBrowserBridgeExecution extends AgentBrowserBridgeTabs
     this.reinitializeIfDaemonIdledOut(sessionName, session)
     session.lastCommandAt = Date.now()
 
-    const args = ['--session', sessionName]
     const managesInterceptRoutes =
       commandArgs[0] === 'network' && (commandArgs[1] === 'route' || commandArgs[1] === 'unroute')
 
     const needsInit = !session.initialized
-    // Every invocation must pin CDP ownership or a restarted daemon may launch Chrome.
-    args.push('--cdp', String(session.proxy.getPort()))
-
-    // Spreading large passthrough argv can exceed V8's argument limit.
-    for (const commandArg of commandArgs) {
-      args.push(commandArg)
-    }
-    args.push('--json')
 
     const pointAtTarget = ELEMENT_COMMANDS_WITHOUT_POINTER.has(commandArgs[0] ?? '')
     if (pointAtTarget) {
@@ -105,7 +100,7 @@ export abstract class AgentBrowserBridgeExecution extends AgentBrowserBridgeTabs
     }
     let stdout: string
     try {
-      stdout = await this.runAgentBrowserRaw(sessionName, args, execOptions)
+      stdout = await this.runAgentBrowserCommand(sessionName, session, commandArgs, execOptions)
     } finally {
       if (pointAtTarget) {
         session.proxy.pointAtNextNode(false)
@@ -122,6 +117,13 @@ export abstract class AgentBrowserBridgeExecution extends AgentBrowserBridgeTabs
       )
     }
 
+    if (agentBrowserResultMintsRefs(translated.result)) {
+      const browserPageId = this.resolveTabIdSafe(session.webContentsId)
+      if (browserPageId) {
+        this.recordRefPage(browserPageId)
+      }
+    }
+
     if (needsInit) {
       session.initialized = true
 
@@ -133,16 +135,7 @@ export abstract class AgentBrowserBridgeExecution extends AgentBrowserBridgeTabs
         this.pendingInterceptRestore.delete(sessionName)
         try {
           const urlPattern = pendingPatterns[0] ?? '**/*'
-          await this.runAgentBrowserRaw(sessionName, [
-            '--session',
-            sessionName,
-            '--cdp',
-            String(session.proxy.getPort()),
-            'network',
-            'route',
-            urlPattern,
-            '--json'
-          ])
+          await this.runAgentBrowserCommand(sessionName, session, ['network', 'route', urlPattern])
           session.activeInterceptPatterns = pendingPatterns
         } catch {
           // Route restoration must not fail an otherwise successful command.
@@ -153,29 +146,96 @@ export abstract class AgentBrowserBridgeExecution extends AgentBrowserBridgeTabs
     return translated.result
   }
 
-  protected async isExplicitContentEditableTarget(
+  private runAgentBrowserCommand(
     sessionName: string,
-    element: string
-  ): Promise<boolean> {
-    const result = await this.execAgentBrowser(sessionName, [
-      'get',
-      'attr',
-      element,
-      'contenteditable'
-    ])
-    return isExplicitContentEditableResult(result)
+    session: SessionState,
+    commandArgs: string[],
+    execOptions?: AgentBrowserExecOptions
+  ): Promise<string> {
+    // Every invocation must pin CDP ownership or a restarted daemon may launch Chrome.
+    const args = ['--session', sessionName, '--cdp', String(session.proxy.getPort())]
+    // A caller's own stdin (eval --stdin) cannot share the pipe with batch input.
+    if (!execOptions?.cliArgv && execOptions?.stdinText === undefined) {
+      return this.runAgentBrowserRaw(sessionName, [...args, ...AGENT_BROWSER_BATCH_ARGS], {
+        ...execOptions,
+        stdinText: agentBrowserBatchInput(commandArgs)
+      })
+    }
+    // Spreading large passthrough argv can exceed V8's argument limit.
+    for (const commandArg of commandArgs) {
+      args.push(commandArg)
+    }
+    args.push('--json')
+    return this.runAgentBrowserRaw(sessionName, args, execOptions)
   }
 
-  protected async fillExplicitContentEditable(
+  /** Runs a browser-element-functions action on the element the helper resolves, in its own frame. */
+  protected async actOnElement(
     sessionName: string,
     element: string,
-    value: string
-  ): Promise<void> {
-    await this.execAgentBrowser(sessionName, ['focus', element])
-    // Send one stdin edit to avoid argv limits and focus changes between chunks.
-    await this.execAgentBrowser(sessionName, ['eval', '--stdin'], {
-      stdinText: focusedRichTextEditExpression(JSON.stringify(value), { selectAll: true })
+    action: string,
+    functionDeclaration: string,
+    args: unknown[] = []
+  ): Promise<unknown> {
+    const session = this.sessions.get(sessionName)
+    if (!session) {
+      throw this.createPageUnavailableError(sessionName)
+    }
+    session.proxy.elementCapture.start()
+    session.proxy.pointAtNextNode(true)
+    let captured: CapturedElement | null
+    try {
+      // Any element read makes the helper resolve the ref or selector, in whichever frame owns it.
+      await this.execAgentBrowser(sessionName, ['get', 'attr', element, 'id'])
+    } finally {
+      session.proxy.pointAtNextNode(false)
+      captured = session.proxy.elementCapture.stop()
+    }
+    const wc = this.getWebContents(session.webContentsId)
+    if (!wc) {
+      throw this.createPageUnavailableError(sessionName)
+    }
+    if (!captured) {
+      throw new BrowserError('browser_error', `Could not resolve ${element} in the page`)
+    }
+    const response = await sendGuestCdpCommand(
+      wc,
+      'Runtime.callFunctionOn',
+      {
+        objectId: captured.objectId,
+        functionDeclaration,
+        arguments: args.map((value) => ({ value })),
+        returnByValue: true
+      },
+      captured.sessionId
+    ).catch((error: unknown) => {
+      if (error instanceof BrowserError) {
+        throw error
+      }
+      if (!this.getWebContents(session.webContentsId)) {
+        throw this.createPageUnavailableError(sessionName)
+      }
+      throw new BrowserError(
+        'browser_cdp_error',
+        error instanceof Error ? error.message : String(error)
+      )
     })
+    const exception = readRecord(response, 'exceptionDetails')
+    if (exception) {
+      const description = readString(readRecord(exception, 'exception'), 'description')
+      throw new BrowserError(
+        'browser_eval_error',
+        description ?? readString(exception, 'text') ?? 'Page function failed'
+      )
+    }
+    const outcome = readRecord(response, 'result')?.value
+    if (typeof outcome === 'string') {
+      throw new BrowserError(
+        'browser_element_not_interactable',
+        `Cannot ${action} ${element}: ${outcome}`
+      )
+    }
+    return outcome
   }
 
   protected createPageUnavailableError(sessionName: string): BrowserError {

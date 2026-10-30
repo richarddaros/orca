@@ -15,7 +15,7 @@ Existing terminal-backed chats use a transcript view over an agent running in a 
 1. Turn **Chat UI** on.
 1. Open a new supported agent tab to start in structured chat. Turn **Chat UI** off to open new agents in the terminal instead. Existing chats stay available.
 
-You can also choose which supported agents open as chats under **Settings → Chat → Providers**. Turning an agent off there makes its new sessions open in the terminal.
+You can also choose whether each supported agent opens as a chat in **Settings → Agents**: each agent's row in the **Installed** list has a **Chat | CLI** choice. Choosing **CLI** makes its new sessions open in the terminal. Agents whose chat runs on a program Orca downloads, such as Antigravity, show that download and their chat sign-in when you expand their row.
 
 ## Continue a conversation in chat or the terminal
 
@@ -41,6 +41,8 @@ If the terminal agent still owns the conversation, Orca asks you to stop or exit
 Structured chat tabs have no in-place terminal view; use **Continue with Terminal Agent** above instead.
 
 A terminal-backed chat is a view over a running terminal agent, so switching it does not create a new session. Use the pane header's **Show terminal** button, or **Continue with Terminal Agent** in its tab menu, to return to the terminal. Right-clicking inside a supported terminal pane offers **Continue in Chat UI**, which shows that same terminal session as a transcript instead of creating a structured chat.
+
+You can also switch the same terminal-backed session with **Switch between Chat UI and terminal** in **Settings → Shortcuts** (`Cmd+Shift+J` by default on macOS, `Ctrl+Shift+J` on Windows/Linux). On Windows/Linux, **Switch worktree** takes precedence when it uses the same chord. Remap either shortcut to remove the overlap, or use the terminal-first shortcut policy while terminal input is focused. Terminal-first does not free the chord in native-chat input.
 
 ## Composer
 

@@ -12,7 +12,11 @@ import {
   recordRendererCrashBreadcrumb
 } from './lib/crash-diagnostics'
 import { installAutomationHostDiagnostic } from './components/automations/automation-host-diagnostics'
-import { applyDocumentTheme } from './lib/document-theme'
+import {
+  applyCachedPluginAppTheme,
+  applyDocumentTheme,
+  readCachedPluginAppTheme
+} from './lib/document-theme'
 import { installTypingLatencyDiagnostic } from './lib/typing-latency/diagnostic'
 import { installAppKeyboardRouter } from './lib/app-keyboard-router'
 import { shouldEnableReactGrab } from './lib/react-grab-dev-gate'
@@ -26,10 +30,13 @@ import { registerBrowserClientPageGuestMessageHandler } from './components/brows
 import { handleGuestWindowCloseMessage } from './components/browser-pane/host-guest/browser-page-window-close'
 import { installOsFileDropCancellationGuard } from './lib/os-file-drop-cancellation-guard'
 import { installReactDevPerformanceMeasureTrim } from './lib/react-dev-performance-measure-trim'
+import { installBodyOverlayAttributes } from './lib/body-overlay-attributes'
 
 const disposeOsFileDropGuard = installOsFileDropCancellationGuard()
 import.meta.hot?.dispose(disposeOsFileDropGuard)
 import.meta.hot?.dispose(installReactDevPerformanceMeasureTrim({ dev: import.meta.env.DEV }))
+const disposeBodyOverlayAttributes = installBodyOverlayAttributes()
+import.meta.hot?.dispose(disposeBodyOverlayAttributes)
 recordRendererCrashBreadcrumb('renderer_bootstrap_started', { dev: import.meta.env.DEV })
 installRendererCrashDiagnostics()
 installTypingLatencyDiagnostic()
@@ -47,7 +54,11 @@ if (
   void import('react-grab/styles.css')
 }
 
-applyDocumentTheme('system', { disableTransitions: false })
+const cachedPluginTheme = readCachedPluginAppTheme()
+applyDocumentTheme(cachedPluginTheme?.base ?? 'system', { disableTransitions: false })
+if (cachedPluginTheme) {
+  applyCachedPluginAppTheme(cachedPluginTheme)
+}
 registerBrowserClientPageGuestMessageHandler(handleGuestWindowCloseMessage)
 const browserClientPageRenderer = installBrowserClientPageRenderer()
 import.meta.hot?.dispose(() => browserClientPageRenderer?.dispose())

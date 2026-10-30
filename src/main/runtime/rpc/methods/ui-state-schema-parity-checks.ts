@@ -21,6 +21,8 @@ type MainOwnedUIState =
   | 'starNagDeferredUntil'
   | 'starNagAgentValueMomentAppVersion'
   | 'customSidebarSections'
+  // Desktop-local replay queue: a paired client must not overwrite it.
+  | 'pendingRuntimeRepoRemovals'
 const _uiUpdateParity: AssertNoMissingKeys<
   Omit<PersistedUIState, MainOwnedUIState>,
   z.infer<UiUpdateFieldsSchema>

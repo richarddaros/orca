@@ -22,12 +22,15 @@ import { WebPairingSecurityNotice } from './WebPairingSecurityNotice'
 import { I18nProvider } from '../i18n/I18nProvider'
 import { translate } from '../i18n/i18n'
 import { installOsFileDropCancellationGuard } from '../lib/os-file-drop-cancellation-guard'
+import { installBodyOverlayAttributes } from '../lib/body-overlay-attributes'
 import { installAppKeyboardRouter } from '../lib/app-keyboard-router'
 import { installReactDevPerformanceMeasureTrim } from '../lib/react-dev-performance-measure-trim'
 
 const disposeOsFileDropGuard = installOsFileDropCancellationGuard()
 import.meta.hot?.dispose(disposeOsFileDropGuard)
 import.meta.hot?.dispose(installReactDevPerformanceMeasureTrim({ dev: import.meta.env.DEV }))
+const disposeBodyOverlayAttributes = installBodyOverlayAttributes()
+import.meta.hot?.dispose(disposeBodyOverlayAttributes)
 installAppKeyboardRouter()
 const App = lazy(() => import('../App'))
 
