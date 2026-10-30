@@ -246,6 +246,15 @@ deixa o merge em andamento. Corrija o lado do fork no worktree de sync sem
 desligar a regra, por exemplo movendo o código do fork para um módulo próprio,
 faça `git add` e rode `corepack pnpm fork:sync --continue [--merge]`.
 
+O hook também roda `oxfmt --write` nos `.md` preparados para o commit. Um
+arquivo de documentação do upstream que estava fora do formato sai do commit do
+merge reformatado e passa a diferir do upstream sem ser do fork (no sync de
+2026-10-30, a tabela de `docs/reference/plugin-authoring.md`, só espaços). Ele
+aparece na lista de arquivos do PR de sync e na vigília dos próximos syncs.
+Registre-o no corpo do PR como reformatação do hook; se o upstream editar o
+mesmo trecho, o conflito é de espaços e se resolve com o lado do upstream. Não
+adianta restaurar o arquivo em outro commit: o mesmo hook o reformata de novo.
+
 ### Dependências próprias do fork
 
 Se o fork um dia adicionar uma dependência ou um patch próprio, o lockfile do

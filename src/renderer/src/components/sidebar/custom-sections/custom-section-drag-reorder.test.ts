@@ -44,6 +44,22 @@ describe('reorderCustomSectionByDrag', () => {
     ])
   })
 
+  it('reorders Pinned by host key too, leaving a same-id twin in place', () => {
+    expect(
+      reorderCustomSectionByDrag({
+        groups: [{ key: 'pinned', worktreeIds: ['local|p', 'ssh:box|p', 'local|q'] }],
+        sourceGroupKey: 'pinned',
+        draggedKeys: ['local|q'],
+        dropIndex: 0
+      })
+    ).toBe(true)
+    expect(store.reorderCustomSectionByDrag).toHaveBeenCalledWith('pinned', [
+      'local|q',
+      'local|p',
+      'ssh:box|p'
+    ])
+  })
+
   it('leaves the drag to upstream before the sections are first used', () => {
     store.customSidebarSections = null
     expect(

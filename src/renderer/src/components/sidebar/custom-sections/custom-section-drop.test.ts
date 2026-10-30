@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { CustomSidebarSectionsState } from '../../../../../shared/custom-sidebar-sections/custom-sidebar-sections-state'
 import type { WorktreeDropCommitContext } from '../worktree-list/drag/drop-commit-context'
 import { composeWorktreeHostIdentity } from '../../../../../shared/worktree/host-qualified-identity'
+import { getWorktreeDragUnitGroups } from '../worktree-drag-units'
 import { commitWorktreePointerDrop } from '../worktree-list/drag/pointer-commit'
 import {
   WORKTREE_ROW_DRAG_INITIAL_STATE,
@@ -612,6 +613,48 @@ describe('custom section drop', () => {
       expect.any(Array),
       'custom-section:s1',
       'local|b'
+    )
+  })
+
+  it('anchors a Pinned drop on the real producer group, which has no slot for a card also shown in its repo group', () => {
+    vi.spyOn(pinnedCard, 'getBoundingClientRect').mockReturnValue(rect(300, 355))
+    pointAt(pinnedCard)
+    store.customSidebarSections = {
+      version: 1,
+      sections: [{ id: 'pinned', name: '', members: ['local|q', 'local|p'] }]
+    }
+    const item = (id: string, sectionKey: string) => ({
+      type: 'item' as const,
+      worktree: { id, hostId: 'local' as const },
+      depth: 0,
+      sectionKey
+    })
+    // `q` is pinned and also listed in its repo group, so its Pinned copy is not a drag slot of its own.
+    const worktreeDragUnitGroups = getWorktreeDragUnitGroups([
+      { type: 'header', key: 'pinned' },
+      item('q', 'pinned'),
+      item('p', 'pinned'),
+      { type: 'header', key: 'repo:r1' },
+      item('q', 'repo:r1')
+    ])
+    const ctx = makeCtx({
+      worktreeDragUnitGroups,
+      computeWorktreeGroupDrop: ({ groupKey }) =>
+        groupKey === 'pinned'
+          ? {
+              dropIndex: 0,
+              dropIndicatorY: 300,
+              previewOffsetsByWorktreeId: new Map(),
+              dropAnchorId: 'local|p'
+            }
+          : null
+    })
+    commitCustomSectionDrop({ drag: makeDrag('repo:r1'), ctx, x: 50, y: 320 })
+    // The stored member `q` is not shown in Pinned, so the drop goes before the first one that is: `p`.
+    expect(store.dropWorkspacesIntoCustomSection).toHaveBeenCalledWith(
+      [{ key: 'ssh:box|a' }],
+      'pinned',
+      'local|p'
     )
   })
 

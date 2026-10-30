@@ -1,6 +1,6 @@
 # Seções personalizadas na sidebar (fork)
 
-<!-- updated: 2026-10-29 -->
+<!-- updated: 2026-10-30 -->
 
 Recurso só do fork `richarddaros/orca` (issue #10). Na lista **Projects** da
 sidebar, o usuário cria seções com nome (por exemplo, "MCF") e coloca nelas
@@ -211,8 +211,9 @@ recebe as seções. O app do celular também não.
   lista (tira da seção), membro de outra seção numa seleção solta na lista,
   seção sem unidades de arrasto e seleção só de folder workspaces.
 - `src/renderer/src/components/sidebar/custom-sections/custom-section-drag-reorder.test.ts`:
-  o arrasto resolve cada card para a chave do membro da seção, mesmo com um
-  gêmeo de outro host na tela.
+  o arrasto reordena por chave host-qualified (seção e Pinned) e move só a cópia
+  arrastada, com o gêmeo de outro host no lugar; antes do primeiro uso e fora das
+  seções, o arrasto fica com o upstream.
 - `tests/e2e/custom-sidebar-sections-drag.spec.ts`: no Orca real, com o mouse,
   arrasta da lista para o vão entre dois cards de uma seção, entre seções pelo
   título, do Pinned para uma seção (Unpin), da seção para a lista e para o
