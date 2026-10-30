@@ -623,9 +623,9 @@ describe('custom section drop', () => {
       version: 1,
       sections: [{ id: 'pinned', name: '', members: ['local|q', 'local|p'] }]
     }
-    const item = (id: string, sectionKey: string) => ({
+    const item = (id: string, sectionKey: string, hostId: 'local' | 'ssh:box' = 'local') => ({
       type: 'item' as const,
-      worktree: { id, hostId: 'local' as const },
+      worktree: { id, hostId },
       depth: 0,
       sectionKey
     })
@@ -650,11 +650,52 @@ describe('custom section drop', () => {
           : null
     })
     commitCustomSectionDrop({ drag: makeDrag('repo:r1'), ctx, x: 50, y: 320 })
-    // The stored member `q` is not shown in Pinned, so the drop goes before the first one that is: `p`.
+    // The stored member `q` has no slot in Pinned, so the drop goes before the first one that does: `p`.
     expect(store.dropWorkspacesIntoCustomSection).toHaveBeenCalledWith(
       [{ key: 'ssh:box|a' }],
       'pinned',
       'local|p'
+    )
+  })
+
+  it('keeps a pinned card that only has a same-id twin on another host in the producer group', () => {
+    vi.spyOn(pinnedCard, 'getBoundingClientRect').mockReturnValue(rect(300, 355))
+    pointAt(pinnedCard)
+    store.customSidebarSections = {
+      version: 1,
+      sections: [{ id: 'pinned', name: '', members: ['local|q', 'local|p'] }]
+    }
+    const item = (id: string, sectionKey: string, hostId: 'local' | 'ssh:box' = 'local') => ({
+      type: 'item' as const,
+      worktree: { id, hostId },
+      depth: 0,
+      sectionKey
+    })
+    // The natural `q` is the ssh copy: it does not take the slot of the pinned local `q`.
+    const worktreeDragUnitGroups = getWorktreeDragUnitGroups([
+      { type: 'header', key: 'pinned' },
+      item('q', 'pinned'),
+      item('p', 'pinned'),
+      { type: 'header', key: 'repo:r1' },
+      item('q', 'repo:r1', 'ssh:box')
+    ])
+    const ctx = makeCtx({
+      worktreeDragUnitGroups,
+      computeWorktreeGroupDrop: ({ groupKey }) =>
+        groupKey === 'pinned'
+          ? {
+              dropIndex: 0,
+              dropIndicatorY: 300,
+              previewOffsetsByWorktreeId: new Map(),
+              dropAnchorId: 'local|q'
+            }
+          : null
+    })
+    commitCustomSectionDrop({ drag: makeDrag('repo:r1'), ctx, x: 50, y: 320 })
+    expect(store.dropWorkspacesIntoCustomSection).toHaveBeenCalledWith(
+      [{ key: 'ssh:box|a' }],
+      'pinned',
+      'local|q'
     )
   })
 
