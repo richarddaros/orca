@@ -8,6 +8,7 @@ import { resolveWorkspaceKanbanCardDropCommitTarget } from '../../workspace-kanb
 import { getFullDropIndexForWorktreeDragUnit } from '../../worktree-drag-units'
 import { resolveWorktreeSidebarStatusDropCommitTarget } from '../../worktree-sidebar-drop-preview'
 import { getPointerDropStatusTarget, shouldPreferSidebarStatusDropTarget } from './status-target'
+import { commitCustomSectionDrop } from '../../custom-sections/custom-section-drop'
 import type {
   WorktreeDropCommitContext,
   WorktreeStatusDropAtIndexArgs
@@ -90,6 +91,11 @@ export function commitWorktreePointerDrop(args: PointerDropCommitArgs): void {
     )
     if (preferredStatusTarget.lineageParentId) {
       ctx.commitWorktreeLineageParentDrop(drag.draggedIds, preferredStatusTarget.lineageParentId)
+      ctx.clearWorktreeDrag()
+      return
+    }
+    // Fork (richarddaros/orca): Pinned and user sections take drops from other groups.
+    if (commitCustomSectionDrop({ drag, ctx, x: event.clientX, y: event.clientY })) {
       ctx.clearWorktreeDrag()
       return
     }

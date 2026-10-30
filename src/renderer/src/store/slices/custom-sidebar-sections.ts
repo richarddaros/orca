@@ -1,15 +1,15 @@
 import type { StateCreator } from 'zustand'
 import { isPairedWebClientWindow } from '@/lib/desktop-window-chrome'
 import type { Worktree } from '../../../../shared/worktree/types'
-import { PINNED_GROUP_KEY } from '../../../../shared/sidebar-list/group-keys'
 import {
   PINNED_CUSTOM_SECTION_ID,
   addCustomSection,
   deleteCustomSection,
-  getCustomSectionIdFromGroupKey,
+  getCustomSectionIdOfGroupKey,
   moveCustomSection,
   normalizeCustomSidebarSections,
   placeCustomSectionMember,
+  placeCustomSectionMembersBefore,
   reconcileCustomSidebarSections,
   removeCustomSectionMember,
   renameCustomSection,
@@ -51,6 +51,12 @@ export type CustomSidebarSectionsSlice = {
   removeWorkspaceFromCustomSection: (workspace: CustomSectionWorkspace) => void
   /** True when the drag group is Pinned or a user section and its order was taken over. */
   reorderCustomSectionByDrag: (groupKey: string, shownKeys: readonly string[]) => boolean
+  /** A drag from another group lands in a section before `beforeKey`; workspaces given with a `worktree` get the menu's Pin/Unpin. */
+  dropWorkspacesIntoCustomSection: (
+    workspaces: readonly CustomSectionWorkspace[],
+    groupKey: string,
+    beforeKey: string | null
+  ) => void
   reconcileCustomSidebarSections: (visible: readonly { key: string; isPinned: boolean }[]) => void
   setCustomSectionDialog: (dialog: CustomSectionDialog | null) => void
 }
@@ -176,15 +182,32 @@ export const createCustomSidebarSectionsSlice: StateCreator<
     },
     reorderCustomSectionByDrag: (groupKey, shownKeys) => {
       const current = get().customSidebarSections
-      const sectionId =
-        groupKey === PINNED_GROUP_KEY
-          ? PINNED_CUSTOM_SECTION_ID
-          : getCustomSectionIdFromGroupKey(groupKey)
+      const sectionId = getCustomSectionIdOfGroupKey(groupKey)
       if (!current || !sectionId) {
         return false
       }
       commit(reorderShownCustomSectionMembers(current, sectionId, shownKeys))
       return true
+    },
+    dropWorkspacesIntoCustomSection: (workspaces, groupKey, beforeKey) => {
+      const current = get().customSidebarSections
+      const sectionId = getCustomSectionIdOfGroupKey(groupKey)
+      if (!current || !sectionId) {
+        return
+      }
+      const keys = workspaces.map((workspace) => workspace.key)
+      const next = placeCustomSectionMembersBefore(current, keys, sectionId, beforeKey)
+      if (next === current) {
+        return
+      }
+      const toPinned = sectionId === PINNED_CUSTOM_SECTION_ID
+      const flips = workspaces.flatMap((workspace) =>
+        workspace.worktree && workspace.worktree.isPinned !== toPinned ? [workspace.worktree] : []
+      )
+      if (flips.length > 0) {
+        get().setWorktreesPinnedAndReveal(flips, toPinned)
+      }
+      commit(next)
     },
     reconcileCustomSidebarSections: (visible) => {
       const current = get().customSidebarSections

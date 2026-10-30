@@ -125,6 +125,55 @@ describe('custom sidebar sections slice', () => {
     expect(store.getState().reorderCustomSectionByDrag('repo:repo', ['local|a'])).toBe(false)
   })
 
+  it('drops dragged workspaces into a user section or Pinned with the same Pin/Unpin as the menu', async () => {
+    const { store, setPinned } = hydratedStore()
+    const id = (await store.getState().createCustomSection('MCF'))!
+    await store.getState().moveWorkspaceToCustomSection({ key: 'local|b' }, id)
+    setPinned.mockClear()
+    const membersOf = (sectionId: string) =>
+      store.getState().customSidebarSections?.sections.find((s) => s.id === sectionId)?.members
+
+    store
+      .getState()
+      .dropWorkspacesIntoCustomSection([pinnedWorkspace], getCustomSectionGroupKey(id), 'local|b')
+    expect(setPinned).toHaveBeenCalledWith([pinnedWorktree], false)
+    expect(membersOf(id)).toEqual([pinnedWorkspace.key, 'local|b'])
+
+    const unpinned = { ...pinnedWorktree, isPinned: false }
+    store
+      .getState()
+      .dropWorkspacesIntoCustomSection(
+        [{ key: pinnedWorkspace.key, worktree: unpinned }],
+        PINNED_GROUP_KEY,
+        null
+      )
+    expect(setPinned).toHaveBeenLastCalledWith([unpinned], true)
+    expect(membersOf('pinned')).toEqual([pinnedWorkspace.key])
+    expect(membersOf(id)).toEqual(['local|b'])
+  })
+
+  it('does not unpin a card dropped into a full section', () => {
+    const { store, setPinned } = hydratedStore()
+    const members = Array.from({ length: 500 }, (_, i) => `local|m${i}`)
+    store.setState({
+      customSidebarSections: {
+        version: 1,
+        sections: [
+          { id: 'pinned', name: '', members: [] },
+          { id: 'full', name: 'Full', members }
+        ]
+      }
+    })
+
+    store
+      .getState()
+      .dropWorkspacesIntoCustomSection([pinnedWorkspace], getCustomSectionGroupKey('full'), null)
+
+    expect(setPinned).not.toHaveBeenCalled()
+    expect(store.getState().customSidebarSections?.sections[1]?.members).toEqual(members)
+    expect(uiSet).not.toHaveBeenCalled()
+  })
+
   it('ignores a sync echo while a newer local write is in flight', async () => {
     const { store } = hydratedStore()
     const id = (await store.getState().createCustomSection('MCF'))!

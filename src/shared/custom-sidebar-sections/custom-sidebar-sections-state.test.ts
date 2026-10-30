@@ -7,6 +7,7 @@ import {
   moveCustomSection,
   normalizeCustomSidebarSections,
   placeCustomSectionMember,
+  placeCustomSectionMembersBefore,
   reconcileCustomSidebarSections,
   renameCustomSection,
   reorderShownCustomSectionMembers,
@@ -131,5 +132,37 @@ describe('reorderShownCustomSectionMembers', () => {
     expect(
       reorderShownCustomSectionMembers(initial, 'mcf', ['local|child', 'local|a', 'local|b'])
     ).toBe(initial)
+  })
+})
+
+describe('placeCustomSectionMembersBefore', () => {
+  it('drops workspaces in drag order before the anchor, keeping hidden members and freeing them elsewhere', () => {
+    const initial = state(
+      ['pinned', ['local|a']],
+      ['mcf', ['local|z', 'local|hidden', 'local|b']],
+      ['other', ['ssh|c']]
+    )
+    const next = placeCustomSectionMembersBefore(initial, ['ssh|c', 'local|a'], 'mcf', 'local|b')
+    expect(membersOf(next)).toEqual({
+      pinned: [],
+      mcf: ['local|z', 'local|hidden', 'ssh|c', 'local|a', 'local|b'],
+      other: []
+    })
+  })
+
+  it('appends without a stored anchor and returns the same state when nothing changes or it would overflow', () => {
+    const initial = state(['pinned', []], ['mcf', ['local|z']])
+    expect(
+      membersOf(placeCustomSectionMembersBefore(initial, ['local|a'], 'mcf', null)).mcf
+    ).toEqual(['local|z', 'local|a'])
+    expect(
+      membersOf(placeCustomSectionMembersBefore(initial, ['local|a'], 'mcf', 'local|follower')).mcf
+    ).toEqual(['local|z', 'local|a'])
+    expect(placeCustomSectionMembersBefore(initial, ['local|z'], 'mcf', null)).toBe(initial)
+    const full = state(
+      ['pinned', []],
+      ['mcf', Array.from({ length: 500 }, (_, i) => `local|m${i}`)]
+    )
+    expect(placeCustomSectionMembersBefore(full, ['local|new'], 'mcf', null)).toBe(full)
   })
 })
