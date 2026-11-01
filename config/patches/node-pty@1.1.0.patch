@@ -302,7 +302,7 @@ index 181ccabbbe9c4948a9725fb1db907a68e9de01fc..67f31facf85562b67adbfbd04ce28ddd
  process.send!({ consoleProcessList });
  process.exit(0);
 diff --git a/src/unix/pty.cc b/src/unix/pty.cc
-index 7b4b9e1f990fbf95b51528bb56dc9717f5b87532..c6b8098f014e10de277062cff74dd165ee93da2a 100644
+index 7b4b9e1f990fbf95b51528bb56dc9717f5b87532..e43049b8b4ae1aaecc204b98ed8f3ebc9c31f2e9 100644
 --- a/src/unix/pty.cc
 +++ b/src/unix/pty.cc
 @@ -23,8 +23,11 @@
@@ -375,7 +375,15 @@ index 7b4b9e1f990fbf95b51528bb56dc9717f5b87532..c6b8098f014e10de277062cff74dd165
  #endif
  
  /* NSIG - macro for highest signal + 1, should be defined */
-@@ -228,6 +268,14 @@ Napi::Value PtyGetProc(const Napi::CallbackInfo& info);
+@@ -167,6 +207,7 @@ void SetupExitCallback(Napi::Env env, Napi::Function cb, pid_t pid) {
+         }
+       }
+     }
++    close(kq);
+ #else
+     while (true) {
+       errno = 0;
+@@ -228,6 +269,14 @@ Napi::Value PtyGetProc(const Napi::CallbackInfo& info);
  static int
  pty_nonblock(int);
  
@@ -390,7 +398,7 @@ index 7b4b9e1f990fbf95b51528bb56dc9717f5b87532..c6b8098f014e10de277062cff74dd165
  #if defined(__APPLE__)
  static char *
  pty_getproc(int);
-@@ -237,13 +285,23 @@ pty_getproc(int, char *);
+@@ -237,13 +286,23 @@ pty_getproc(int, char *);
  #endif
  
  #if defined(__APPLE__) || defined(__OpenBSD__)
@@ -415,7 +423,7 @@ index 7b4b9e1f990fbf95b51528bb56dc9717f5b87532..c6b8098f014e10de277062cff74dd165
  #endif
  
  struct DelBuf {
-@@ -345,8 +403,8 @@ Napi::Value PtyFork(const Napi::CallbackInfo& info) {
+@@ -345,8 +404,8 @@ Napi::Value PtyFork(const Napi::CallbackInfo& info) {
    term->c_cc[VSTATUS] = 20;
    #endif
  
@@ -426,7 +434,7 @@ index 7b4b9e1f990fbf95b51528bb56dc9717f5b87532..c6b8098f014e10de277062cff74dd165
  
    // helperPath
    std::string helper_path = info[9].As<Napi::String>();
-@@ -367,14 +425,18 @@ Napi::Value PtyFork(const Napi::CallbackInfo& info) {
+@@ -367,14 +426,18 @@ Napi::Value PtyFork(const Napi::CallbackInfo& info) {
      argv[i + 3] = strdup(arg.c_str());
    }
  
@@ -449,7 +457,7 @@ index 7b4b9e1f990fbf95b51528bb56dc9717f5b87532..c6b8098f014e10de277062cff74dd165
  #else
    int argc = argv_.Length();
    int argl = argc + 2;
-@@ -433,6 +495,8 @@ Napi::Value PtyFork(const Napi::CallbackInfo& info) {
+@@ -433,6 +496,8 @@ Napi::Value PtyFork(const Napi::CallbackInfo& info) {
          }
        }
  
@@ -458,7 +466,7 @@ index 7b4b9e1f990fbf95b51528bb56dc9717f5b87532..c6b8098f014e10de277062cff74dd165
        {
          char **old = environ;
          environ = env;
-@@ -445,6 +509,9 @@ Napi::Value PtyFork(const Napi::CallbackInfo& info) {
+@@ -445,6 +510,9 @@ Napi::Value PtyFork(const Napi::CallbackInfo& info) {
        if (pty_nonblock(master) == -1) {
          throw Napi::Error::New(napiEnv, "Could not set master fd to nonblocking.");
        }
@@ -468,7 +476,7 @@ index 7b4b9e1f990fbf95b51528bb56dc9717f5b87532..c6b8098f014e10de277062cff74dd165
    }
  #endif
  
-@@ -575,6 +642,36 @@ Napi::Value PtyGetProc(const Napi::CallbackInfo& info) {
+@@ -575,6 +643,36 @@ Napi::Value PtyGetProc(const Napi::CallbackInfo& info) {
    return name_;
  }
  
@@ -505,7 +513,7 @@ index 7b4b9e1f990fbf95b51528bb56dc9717f5b87532..c6b8098f014e10de277062cff74dd165
  /**
   * Nonblocking FD
   */
-@@ -586,6 +683,23 @@ pty_nonblock(int fd) {
+@@ -586,6 +684,23 @@ pty_nonblock(int fd) {
    return fcntl(fd, F_SETFL, flags | O_NONBLOCK);
  }
  
@@ -529,7 +537,7 @@ index 7b4b9e1f990fbf95b51528bb56dc9717f5b87532..c6b8098f014e10de277062cff74dd165
  /**
   * pty_getproc
   * Taken from tmux.
-@@ -684,15 +798,73 @@ pty_getproc(int fd, char *tty) {
+@@ -684,15 +799,73 @@ pty_getproc(int fd, char *tty) {
  #endif
  
  #if defined(__APPLE__)
@@ -605,7 +613,7 @@ index 7b4b9e1f990fbf95b51528bb56dc9717f5b87532..c6b8098f014e10de277062cff74dd165
  
    for (; count < 3; count++) {
      low_fds[count] = posix_openpt(O_RDWR);
-@@ -706,81 +878,496 @@ pty_posix_spawn(char** argv, char** env,
+@@ -706,81 +879,496 @@ pty_posix_spawn(char** argv, char** env,
                POSIX_SPAWN_SETSID;
    *master = posix_openpt(O_RDWR);
    if (*master == -1) {
@@ -1126,7 +1134,7 @@ index 7b4b9e1f990fbf95b51528bb56dc9717f5b87532..c6b8098f014e10de277062cff74dd165
  }
  #endif
  
-@@ -793,6 +1380,11 @@ Napi::Object init(Napi::Env env, Napi::Object exports) {
+@@ -793,6 +1381,11 @@ Napi::Object init(Napi::Env env, Napi::Object exports) {
    exports.Set("open",    Napi::Function::New(env, PtyOpen));
    exports.Set("resize",  Napi::Function::New(env, PtyResize));
    exports.Set("process", Napi::Function::New(env, PtyGetProc));

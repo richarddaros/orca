@@ -1,9 +1,11 @@
 import type { AutomationsChangedPayload } from '../../../../shared/runtime-client-events'
+import { getWorkerTerminalAutoReleaseScheduler } from '../../orchestration/worker-terminal-auto-release-scheduler'
 import type { ResolvedWorktree } from '../../runtime-worktree-path-identity'
 import { OrcaRuntimeWithPtyForegroundProcessReads } from '../../client/runtime-client-state'
 import type {
   AutomationOwnerPrecondition,
-  AutomationDestination
+  AutomationDestination,
+  AutomationUpdatePreconditions
 } from '../../../../shared/automation-owner-precondition'
 import type { Automation, AutomationRun } from '../../../../shared/automations-types'
 import type {
@@ -28,10 +30,15 @@ import type { LegacyWorkerTerminalRecoveryResult } from '../../runtime-legacy-wo
 import { makePaneKey } from '../../../../shared/stable-pane-id'
 import { worktreeIdsEqual } from '../../../../shared/worktree/id'
 
+// Keyed by runtime, not a field: the database can open while the runtime is still constructing.
+const runtimesWatchingAutoReleaseSetting = new WeakSet<object>()
+
 export abstract class OrcaRuntimeWithAutomationOperations extends OrcaRuntimeWithPtyForegroundProcessReads {
   abstract notifyAutomationsChanged(payload?: AutomationsChangedPayload): void
   abstract ensureOrchestrationFederationRelay(runId?: string): void
   protected abstract scheduleRestoredMessageRepoints(): void
+  /** Mail a worker left unread when it reported before a restart still continues it. */
+  protected abstract continueRestoredWorkerMail(db: OrchestrationDb): void
   protected abstract getResolvedWorktreeMap(): Promise<Map<string, ResolvedWorktree>>
   protected abstract getLeafKey(tabId: string, leafId: string): string
 
@@ -107,7 +114,7 @@ export abstract class OrcaRuntimeWithAutomationOperations extends OrcaRuntimeWit
   updateAutomation(
     id: string,
     updates: RuntimeAutomationUpdateInput,
-    options?: { expectedOwner?: AutomationOwnerPrecondition; destination?: AutomationDestination }
+    options?: AutomationUpdatePreconditions
   ): Promise<Automation> {
     return this.automation.withExternalProbePriority(() => {
       const source = this.automationChangeSelector(id)
@@ -155,6 +162,10 @@ export abstract class OrcaRuntimeWithAutomationOperations extends OrcaRuntimeWit
       this.bindMailHandBack(this._orchestrationDb)
       this.ensureOrchestrationFederationRelay()
       this.scheduleRestoredMessageRepoints()
+      this.bindWorkerTerminalAutoRelease(this._orchestrationDb)
+      // Recover deadlines armed before a restart.
+      getWorkerTerminalAutoReleaseScheduler(this).rearm()
+      this.continueRestoredWorkerMail(this._orchestrationDb)
     }
     return this._orchestrationDb
   }
@@ -177,6 +188,26 @@ export abstract class OrcaRuntimeWithAutomationOperations extends OrcaRuntimeWit
     this.bindMailHandBack(db)
     this.ensureOrchestrationFederationRelay()
     this.scheduleRestoredMessageRepoints()
+    this.bindWorkerTerminalAutoRelease(db)
+  }
+
+  private bindWorkerTerminalAutoRelease(db: OrchestrationDb): void {
+    db.workerTerminalAutoReleaseListener = () => {
+      if (this._orchestrationDb === db) {
+        getWorkerTerminalAutoReleaseScheduler(this).rearm()
+      }
+    }
+    db.workerAutoReleaseEnabled = () =>
+      this.store?.getSettings?.()?.orchestrationWorkerAutoReleaseEnabled !== false
+    if (this.store?.onSettingsChanged && !runtimesWatchingAutoReleaseSetting.has(this)) {
+      runtimesWatchingAutoReleaseSetting.add(this)
+      // Turning the setting off drops the timer; turning it on finds the deadlines still due.
+      this.store.onSettingsChanged((updates) => {
+        if ('orchestrationWorkerAutoReleaseEnabled' in updates && this._orchestrationDb) {
+          getWorkerTerminalAutoReleaseScheduler(this).rearm()
+        }
+      })
+    }
   }
 
   private bindMailHandBack(db: OrchestrationDb): void {
