@@ -246,6 +246,24 @@ deixa o merge em andamento. Corrija o lado do fork no worktree de sync sem
 desligar a regra, por exemplo movendo o código do fork para um módulo próprio,
 faça `git add` e rode `corepack pnpm fork:sync --continue [--merge]`.
 
+Se o arquivo reprovado é só do upstream (idêntico ao de `origin/main`), não há
+lado do fork para corrigir. Foi o caso do sync de 2026-11-01:
+`src/main/runtime/workspaces/persisted-surfaces/automation-operations.ts` ficou
+com 301 linhas contra o limite de 300 depois de dois PRs do upstream mesclados
+com 8 minutos de diferença. Não use `--no-verify`, não desligue a regra e não
+edite o arquivo do upstream. Faça um merge parcial: `git merge --abort` no
+worktree de sync, `git merge --no-ff --no-commit <sha>` com o último commit do
+upstream que passa no hook (o pai do commit que estourou, no histórico linear do
+upstream), refaça as resoluções manuais e rode
+`corepack pnpm fork:sync --continue [--merge]`. O script aceita porque exige só
+que o `MERGE_HEAD` seja ancestral de `origin/main`; o `--continue` resolve o
+`pnpm-lock.yaml` e o bloco do fork no `AGENTS.md`, mas um patch de dependência
+em conflito continua manual. O corpo gerado do PR diz "merge de `origin/main`"
+e não sabe do merge parcial: registre nele o sha mesclado, os commits que
+ficaram de fora e o motivo. O `fork:status` passa a listá-los como faltantes e o
+próximo sync os traz quando o upstream corrigir; enquanto o arquivo seguir
+reprovado, repita o procedimento.
+
 O hook também roda `oxfmt --write` nos `.md` preparados para o commit. Um
 arquivo de documentação do upstream que estava fora do formato sai do commit do
 merge reformatado e passa a diferir do upstream sem ser do fork (no sync de
@@ -254,6 +272,8 @@ aparece na lista de arquivos do PR de sync e na vigília dos próximos syncs.
 Registre-o no corpo do PR como reformatação do hook; se o upstream editar o
 mesmo trecho, o conflito é de espaços e se resolve com o lado do upstream. Não
 adianta restaurar o arquivo em outro commit: o mesmo hook o reformata de novo.
+No sync de 2026-11-01 o upstream já trazia a mesma formatação nesse arquivo e
+ele deixou de diferir; vale o mecanismo, não esse arquivo.
 
 ### Dependências próprias do fork
 
