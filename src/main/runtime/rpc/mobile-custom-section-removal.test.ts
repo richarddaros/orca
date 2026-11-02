@@ -29,7 +29,11 @@ function setup(
       psRow('a', { repoId: 'real-repo', path: '/work/a' }),
       psRow('b', { repoId: 'real-repo' })
     )
-  const getWorktreePs = vi.fn(async () => rows)
+  // Why: the real listing returns one page, so a stub that ignores the limit would hide a guard that reads too few rows.
+  const getWorktreePs = vi.fn(async (limit: number) => ({
+    ...rows,
+    worktrees: rows.worktrees.slice(0, limit)
+  }))
   const getRepoHooks = vi.fn(options.hooks ?? (async () => ARCHIVE_SCRIPT))
   const stored =
     'sections' in options
@@ -62,6 +66,18 @@ describe('refuseSkippedArchiveHookForSectionMember', () => {
     })
     // Why: the script is read from the real project, not from the section's stand-in.
     expect(getRepoHooks).toHaveBeenCalledWith('id:real-repo')
+  })
+
+  it('refuses a sectioned card that sits past the default page of the listing', async () => {
+    const crowd = psResult(
+      ...Array.from({ length: 300 }, (_, index) =>
+        psRow(index === 250 ? 'a' : `filler-${index}`, { repoId: 'real-repo' })
+      )
+    )
+
+    await expect(setup({ rows: crowd }).run({})).rejects.toMatchObject({
+      code: ARCHIVE_HOOK_FAILED_REMOVAL_CODE
+    })
   })
 
   it('refuses a card that follows a sectioned parent by lineage', async () => {

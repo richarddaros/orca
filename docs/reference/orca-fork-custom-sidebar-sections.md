@@ -169,7 +169,11 @@ aparelho**:
     upstream (`repo.hooks`) e estado em memória por conexão, não se verificou que a
     conexão do celular é estável entre as duas chamadas, e a janela pede que o
     próprio usuário tire o card da seção no desktop enquanto confirma a exclusão
-    no celular.
+    no celular. Outra defesa, sem encaixe novo no upstream nem estado por conexão:
+    guardar em memória, por alguns minutos, a identidade de cada linha servida ao
+    celular próprio sob uma seção (em `projectWorktreePsCustomSections`) e recusar
+    também o card que não está numa seção agora mas foi servido como tal nesse
+    intervalo; o falso positivo cai em "Delete Anyway". Também não foi feita.
   - O inverso também ocorre: um card posto numa seção depois de listado no projeto
     real, excluído com "Skip", é recusado com o texto de "não deu para verificar",
     e um toque em "Delete Anyway" resolve.
@@ -197,6 +201,10 @@ aparelho**:
   filtro compartilhado com o desktop (`filterRepoIds`); o desktop descarta o id
   ao hidratar, então o filtro não volta igual. Filtrar um projeto real no
   celular esconde os membros dele que estão em seções.
+- Recolher o cabeçalho de uma seção no celular grava `repo:custom-section:<id>`
+  nos grupos recolhidos compartilhados com o desktop, que usa `custom-section:<id>`:
+  o recolhido não vale nos dois lados, e a chave do celular fica guardada sem uso
+  no desktop.
 - O celular que monta a lista pelo feed da sidebar (`ORCA_SIDEBAR_INPUTS=main`)
   não recebe as linhas nas seções.
 
