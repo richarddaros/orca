@@ -307,7 +307,8 @@ recebe as seções nas linhas da sidebar. O celular só as recebe pelo caminho
   vazia, filho sob o pai). Roda com o vitest de `mobile/`, não com o da raiz.
 - `src/main/runtime/rpc/mobile-custom-section-removal.test.ts`: a guarda recusa o
   card de seção (membro ou filho de linhagem) quando o projeto real tem script de
-  archive ou os hooks não leem, e deixa passar com waiver, com `runHooks`, sem
+  archive ou os hooks não leem (também o card que está além da página padrão de
+  200 linhas da listagem), e deixa passar com waiver, com `runHooks`, sem
   script, fora de seção, fixado, seletor que não é id, celular delegado, web e
   sem cliente; com `hostId` informado ela escolhe a cópia certa (e lê `local`
   como a linha sem host); o `worktree.rm` recusa antes de remover, remove depois
