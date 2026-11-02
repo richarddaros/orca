@@ -112,6 +112,10 @@ const folderLabelCount = (markup: string): number =>
 const folderLabelClasses = (markup: string): string[] =>
   (markup.match(/<span class="([^"]*)"[^>]*data-worktree-card-folder=""/)?.[1] ?? '').split(' ')
 
+// Why: the icon is the only yellow part of the label; the name stays muted so it does not compete with the title.
+const folderIconClasses = (markup: string): string[] =>
+  (markup.match(/data-worktree-card-folder=""[^>]*><svg[^>]*class="([^"]*)"/)?.[1] ?? '').split(' ')
+
 describe('WorktreeCard worktree folder', () => {
   // The first import loads the whole card tree; warming it here keeps that cost out of every test's own timeout.
   beforeAll(async () => {
@@ -172,6 +176,21 @@ describe('WorktreeCard worktree folder', () => {
     expect(classes).toEqual(expect.arrayContaining(['shrink-0', 'max-w-24']))
     expect(classes).not.toContain('shrink-3')
   })
+
+  it.each([false, true])(
+    'fills the folder icon yellow and leaves the name muted (new card style %s)',
+    async (experimentalNewWorktreeCardStyle) => {
+      settings = { compactWorktreeCards: false, experimentalNewWorktreeCardStyle }
+      const markup = await renderCard(makeWorktree({ head: '' }))
+
+      expect(folderIconClasses(markup)).toEqual(
+        expect.arrayContaining(['fill-status-warning', 'text-status-warning'])
+      )
+      expect(folderLabelClasses(markup)).toContain('text-muted-foreground')
+      // Why exact: any colour class on the name span would turn the whole label yellow.
+      expect(markup).toContain('<span class="min-w-0 truncate font-mono">pinfish</span>')
+    }
+  )
 
   it('puts the project chip first, then the folder, then the title in the new card style', async () => {
     settings = { compactWorktreeCards: false, experimentalNewWorktreeCardStyle: true }

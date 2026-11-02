@@ -107,6 +107,15 @@ Onde o nome entra depende do layout do card:
   trunca primeiro é o título. Esse estilo vale também com o layout compacto
   ligado, porque o estilo experimental o sobrepõe.
 
+Nos dois layouts o ícone é uma pasta amarela preenchida (`fill-status-warning` e
+`text-status-warning`, o amarelo de "precisa de atenção" do tema: dourado no
+claro, amarelo vivo no escuro) e o nome fica no cinza de sempre, para achar a
+pasta no meio do texto do card sem disputar com o título. A cor é só do ícone,
+em `worktree-card-folder-label.tsx`. O token é do tema, não uma cor crua do
+Tailwind, porque o gate de design (`shadcn(no-raw-colors)`, em
+`check:code-quality:changed`) barra cor crua em código novo; um preenchimento
+translúcido (`/60`) ficou fosco demais nas capturas.
+
 Ao contrário do resto deste doc, isso não depende das seções: vale desde a
 primeira abertura, em todo card git dos dois layouts, mesmo para quem nunca
 criou uma seção.
@@ -269,7 +278,7 @@ Módulos do fork:
 | `src/shared/custom-sidebar-sections/custom-section-order.ts`                 | Ordem dentro de uma seção: posição salva, filhos por criação, ordem de tela                 |
 | `src/renderer/src/store/slices/custom-sidebar-sections.ts`                   | Slice do store, ativação no primeiro uso, gravação e Pin/Unpin                              |
 | `src/renderer/src/components/sidebar/custom-sections/`                       | Botão, diálogos, menu ⋯ da seção, menu do card e arrasto dentro da seção                    |
-| `src/renderer/src/components/sidebar/worktree-card-folder-label.tsx`         | Ícone e nome da pasta do worktree, sob o título (padrão) ou ao lado dele (estilo novo)      |
+| `src/renderer/src/components/sidebar/worktree-card-folder-label.tsx`         | Ícone (pasta amarela) e nome da pasta do worktree, sob o título (padrão) ou ao lado (novo)  |
 | `src/renderer/src/components/sidebar/custom-sections/custom-section-drop.ts` | Arrasto entre grupos: alvo sob o ponteiro, linha de inserção, drop e saída para a lista     |
 | `src/shared/custom-sidebar-sections/mobile-section-projection.ts`            | Projeção pura: projeto de mentira por seção e troca do `repoId` das linhas                  |
 | `src/main/runtime/rpc/mobile-custom-sections.ts`                             | Lê as seções e aplica a projeção só ao celular do próprio computador                        |
@@ -370,8 +379,9 @@ recebe as seções nas linhas da sidebar. O celular só as recebe pelo caminho
   o card padrão mostra a pasta antes do branch e do "Detached HEAD" e cria a
   linha de baixo num card que não tinha nada nela; o estilo experimental mostra
   uma só pasta, depois do chip do projeto e antes do título, sem linha de meta
-  (também com o compacto ligado) e com as classes que a impedem de encolher;
-  compacto sem o estilo experimental e folder workspace não mostram a pasta.
+  (também com o compacto ligado) e com as classes que a impedem de encolher; nos
+  dois layouts o ícone é amarelo preenchido e o nome continua cinza; compacto
+  sem o estilo experimental e folder workspace não mostram a pasta.
 - `tests/e2e/custom-sidebar-sections.spec.ts`: no Orca real, com sort Recent,
   prova primeiro que a atividade reordena a lista normal e depois que a seção
   "MCF" criada pelo botão mantém a ordem escolhida; um segundo teste fecha e
