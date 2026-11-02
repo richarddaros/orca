@@ -129,8 +129,12 @@ delegados, os desktops pareados e a CLI continuam como antes.
   de linhagem acompanham o pai, como no desktop; membro fixado continua no
   Pinned; a cópia de mesmo id em outro host não se move. A troca vem antes do
   cálculo do snapshot e do delta de linhas, então o celular compara o que ele vê.
-- O celular casa a linha com o membro de duas formas, com e sem `local` como
-  host, porque o `worktree.ps` omite o host de worktrees locais.
+- O host casa a linha com o membro de duas formas, com e sem `local` como host,
+  porque o `worktree.ps` omite o host de worktrees locais. Quando as duas
+  grafias existem em seções diferentes, vale a que não tem host.
+- Folder workspaces: o `worktree.ps` não manda o host das pastas, então só casam
+  as pastas cuja chave guardada é `local|…` ou sem host. Uma pasta em outro host
+  (`ssh:…|folder:…`) continua sob o projeto no celular.
 
 O que não é igual ao desktop, **lido no código do app e não testado no
 aparelho**:
@@ -143,19 +147,21 @@ aparelho**:
   cabeçalho vazio. Os cards da seção não mostram o nome do projeto de origem, e a
   cor e o ícone do projeto no card e no cabeçalho ficam no padrão.
 - **Excluir pelo celular um workspace que está numa seção não roda o script de
-  archive do projeto.** O app busca o script por `repo: id:<repoId>`, não acha o
-  projeto da seção no host e trata "não dá para checar" como "não roda" (sem
-  erro). Para rodar o script, exclua pelo desktop ou tire o card da seção antes.
-- O detalhe do workspace casa PR e issue vinculados pelo `repoId` e pode não
-  mostrá-los; as automações e o "Novo workspace" também usam o `repoId`, então um
-  workspace de seção não aparece sob o projeto real nelas e o "Novo workspace" não
-  pré-seleciona o projeto do último card visitado. O nome ao vivo da tela da
-  sessão atualiza pelo polling de reserva, não pelo evento do projeto.
-- O histórico de agentes não casa sessões antigas de um workspace renomeado ou
-  movido que esteja numa seção (compara o `repoId` dos ids anteriores com o da
-  linha).
-- Membros de folder workspace só casam quando a chave guardada é `local|…` ou sem
-  host; pastas em outro host não foram verificadas.
+  archive do projeto.** O app lê o script por `repo.hooks` com `id:<repoId>`, o
+  host não acha o projeto da seção (`repo_not_found`) e o app trata a leitura
+  recusada como "não dá para checar, não roda": manda `worktree.rm` com
+  `runHooks: false` e `force: true`, sem erro na tela. O host não impede. Para
+  rodar o script, exclua pelo desktop ou tire o card da seção antes.
+- O detalhe do workspace casa o PR vinculado pelo `repoId`; num card de seção o PR
+  do branch pode aparecer duas vezes. A issue vinculada não muda.
+- Histórico de agentes: a aba do projeto de um card de seção cobre os workspaces
+  da seção, não os do projeto real, e as sessões antigas de um workspace
+  renomeado ou movido que esteja numa seção não casam (o app compara o `repoId`
+  dos ids anteriores com o da linha).
+- O filtro "Projetos" do celular passa a listar as seções e grava o id delas no
+  filtro compartilhado com o desktop (`filterRepoIds`); o desktop descarta o id
+  ao hidratar, então o filtro não volta igual. Filtrar um projeto real no
+  celular esconde os membros dele que estão em seções.
 - O celular que monta a lista pelo feed da sidebar (`ORCA_SIDEBAR_INPUTS=main`)
   não recebe as linhas nas seções.
 
@@ -203,6 +209,8 @@ Módulos do fork:
 | `src/renderer/src/components/sidebar/custom-sections/`                       | Botão, diálogos, menu ⋯ da seção, menu do card e arrasto dentro da seção                |
 | `src/renderer/src/components/sidebar/worktree-card-folder-label.tsx`         | Ícone e nome da pasta do worktree na linha de baixo do título do card                   |
 | `src/renderer/src/components/sidebar/custom-sections/custom-section-drop.ts` | Arrasto entre grupos: alvo sob o ponteiro, linha de inserção, drop e saída para a lista |
+| `src/shared/custom-sidebar-sections/mobile-section-projection.ts`            | Projeção pura: projeto de mentira por seção e troca do `repoId` das linhas              |
+| `src/main/runtime/rpc/mobile-custom-sections.ts`                             | Lê as seções e aplica a projeção só ao celular do próprio computador                    |
 
 Pontos de encaixe em arquivos do upstream (conferir em todo sync que mexer neles):
 
@@ -225,8 +233,6 @@ Pontos de encaixe em arquivos do upstream (conferir em todo sync que mexer neles
 | `src/renderer/src/components/sidebar/worktree-card-meta-row.tsx`                                              | `WorktreeCardFolderLabel` antes do branch ou do "Detached HEAD"                                                                          |
 | `src/renderer/src/store/index.ts`, `types.ts`, `slices/store-test-helpers.ts`                                 | Registro do slice                                                                                                                        |
 | `src/renderer/src/store/slices/ui/ui-slice-hydration-actions.ts`                                              | Hidratação do campo                                                                                                                      |
-| `src/shared/custom-sidebar-sections/mobile-section-projection.ts`                                             | Projeção pura: projeto de mentira por seção e troca do `repoId` das linhas                                                               |
-| `src/main/runtime/rpc/mobile-custom-sections.ts`                                                              | Lê as seções e aplica a projeção só ao celular do próprio computador                                                                     |
 | `src/main/runtime/rpc/methods/worktree-catalog-methods.ts`, `mobile-project-sections.ts`                      | Chamam a projeção em `worktree.ps` e em `mobileRelay.projectSections`                                                                    |
 | `src/shared/persisted-ui-state-types.ts`, `pairing-local-ui-fields.ts`                                        | Campo persistido e bloqueio para pareados                                                                                                |
 | `src/main/runtime/rpc/methods/ui-state-schema-parity-checks.ts`                                               | Campo fora do schema do RPC                                                                                                              |

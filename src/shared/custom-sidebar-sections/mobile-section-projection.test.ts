@@ -170,3 +170,38 @@ describe('projectCustomSectionsOntoCatalog', () => {
     expect(projectCustomSectionsOntoCatalog(base, sectionsState())).toBe(base)
   })
 })
+
+describe('what the projection leaves alone', () => {
+  function deepFreeze<T>(value: T): T {
+    if (typeof value === 'object' && value !== null) {
+      Object.values(value).forEach(deepFreeze)
+      Object.freeze(value)
+    }
+    return value
+  }
+
+  it('does not mutate the runtime result it was given', () => {
+    const result = deepFreeze(psResult(psRow('a', { childWorktreeIds: ['b'] }), psRow('b')))
+    const before = JSON.stringify(result)
+    const state = deepFreeze(sectionsState({ id: 's1', name: 'MCF', members: ['|a'] }))
+    const catalog = deepFreeze(catalogOf(['repo-a', 'orca']))
+    const catalogBefore = JSON.stringify(catalog)
+
+    expect(() => projectCustomSectionsOntoPs(result, state)).not.toThrow()
+    expect(() => projectCustomSectionsOntoCatalog(catalog, state)).not.toThrow()
+    expect(JSON.stringify(result)).toBe(before)
+    expect(JSON.stringify(catalog)).toBe(catalogBefore)
+  })
+
+  it('files a row stored under both host spellings with the section that spells no host', () => {
+    const projected = projectCustomSectionsOntoPs(
+      psResult(psRow('a')),
+      sectionsState(
+        { id: 's1', name: 'With local', members: ['local|a'] },
+        { id: 's2', name: 'No host', members: ['|a'] }
+      )
+    )
+
+    expect(projected.worktrees[0]?.repoId).toBe(mobileSectionRepoId('s2'))
+  })
+})

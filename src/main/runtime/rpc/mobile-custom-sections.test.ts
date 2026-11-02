@@ -66,7 +66,7 @@ describe('who sees the sections', () => {
 })
 
 describe('the RPC methods', () => {
-  const stored = sectionsState({ id: 's1', name: 'MCF', members: ['|a'] })
+  let stored = sectionsState({ id: 's1', name: 'MCF', members: ['|a'] })
 
   function dispatcher(methods: ConstructorParameters<typeof RpcDispatcher>[0]['methods']) {
     // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: the two handlers read only these runtime members.
@@ -86,7 +86,13 @@ describe('the RPC methods', () => {
     return new RpcDispatcher({ runtime, methods })
   }
 
-  const request = (method: string) => ({ id: 'r', authToken: 't', method, params: {} })
+  const request = (method: string, params: Record<string, unknown> = {}) => ({
+    id: 'r',
+    authToken: 't',
+    method,
+    params
+  })
+  const resultOf = (reply: unknown) => JSON.parse(JSON.stringify(reply)).result
 
   it('worktree.ps files the sections for the host’s own phone and not for the web client', async () => {
     const d = dispatcher(WORKTREE_CATALOG_METHODS)
@@ -99,6 +105,36 @@ describe('the RPC methods', () => {
       )
     expect(repoIds(phone)).toEqual([mobileSectionRepoId('s1'), 'repo-a'])
     expect(repoIds(web)).toEqual(['repo-a', 'repo-a'])
+  })
+
+  it('worktree.ps polls see a section change on the phone while the web client sees none', async () => {
+    stored = sectionsState({ id: 's1', name: 'MCF', members: ['|a'] })
+    const d = dispatcher(WORKTREE_CATALOG_METHODS)
+    const poll = (client: 'mobile' | 'runtime', afterSnapshotId: string | null) =>
+      d
+        .dispatch(request('worktree.ps', { afterSnapshotId, acceptRowDelta: true }), {
+          clientKind: client
+        })
+        .then(resultOf)
+    const phoneBefore = await poll('mobile', null)
+    const webBefore = await poll('runtime', null)
+
+    // Why: the snapshot id is computed over the rows each client is sent, so it differs between them.
+    expect(phoneBefore.worktrees[0].repoId).toBe(mobileSectionRepoId('s1'))
+    expect(phoneBefore.snapshotId).not.toBe(webBefore.snapshotId)
+
+    stored = sectionsState({ id: 's1', name: 'Renamed', members: ['|a'] })
+    const phoneAfter = await poll('mobile', phoneBefore.snapshotId)
+    const webAfter = await poll('runtime', webBefore.snapshotId)
+
+    expect(phoneAfter.unchanged).toBeUndefined()
+    expect(
+      phoneAfter.rowsFromBase.some(
+        (row: unknown) =>
+          typeof row === 'object' && row !== null && 'repo' in row && row.repo === 'Renamed'
+      )
+    ).toBe(true)
+    expect(webAfter).toEqual({ unchanged: true, snapshotId: webBefore.snapshotId })
   })
 
   it('mobileRelay.projectSections lists the stand-in repos for the host’s own phone only', async () => {
