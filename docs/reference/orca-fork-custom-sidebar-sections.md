@@ -1,6 +1,6 @@
 # Seções personalizadas na sidebar (fork)
 
-<!-- updated: 2026-10-30 -->
+<!-- updated: 2026-11-01 -->
 
 Recurso só do fork `richarddaros/orca` (issue #10). Na lista **Projects** da
 sidebar, o usuário cria seções com nome (por exemplo, "MCF") e coloca nelas
@@ -107,7 +107,57 @@ criou uma seção.
   folder workspace.
 - Folder workspaces já mostravam a pasta e continuam iguais. O layout compacto
   e o estilo experimental não mudam.
-- O app do celular tem cards próprios e não muda.
+- O app do celular tem cards próprios e não muda. As seções chegam a ele pelas
+  respostas do host (ver "No celular do próprio computador").
+
+## No celular do próprio computador
+
+O app do celular não muda. Ele agrupa as linhas do `worktree.ps` pelo `repoId` e
+lê a lista de projetos de `mobileRelay.projectSections`; por isso o host serve
+cada seção como um **projeto de mentira**. Só o celular deste computador
+(`clientKind` `mobile` sem `pairedDeviceParentId`, o mesmo critério de
+`isHostOwnPhone`) recebe isso. `repo.list`, o web pareado, os celulares
+delegados, os desktops pareados e a CLI continuam como antes.
+
+- `mobileRelay.projectSections` lista um projeto por seção com nome, antes dos
+  projetos reais e na ordem guardada (`id` `custom-section:<id>`, com `path`
+  próprio). Seção vazia aparece como cabeçalho vazio. Projetos e setups do
+  catálogo não mudam.
+- `worktree.ps` troca `repoId` e `repo` das linhas membros pelo projeto da seção
+  e põe `manualOrder` pela posição guardada (o primeiro membro tem o maior
+  rank, porque o sort Manual do celular ordena do maior para o menor). Os filhos
+  de linhagem acompanham o pai, como no desktop; membro fixado continua no
+  Pinned; a cópia de mesmo id em outro host não se move. A troca vem antes do
+  cálculo do snapshot e do delta de linhas, então o celular compara o que ele vê.
+- O celular casa a linha com o membro de duas formas, com e sem `local` como
+  host, porque o `worktree.ps` omite o host de worktrees locais.
+
+O que não é igual ao desktop, **lido no código do app e não testado no
+aparelho**:
+
+- A ordem dentro da seção só vale com o sort Manual do celular; os outros sorts
+  reordenam como em qualquer lista. Com a ordem de projetos por atividade
+  (`recent`) as seções se misturam com os projetos reais. O Pinned do celular
+  fica sempre primeiro, mesmo quando no desktop uma seção vem antes dele.
+- Um projeto cujos workspaces estão todos em seções continua na lista como
+  cabeçalho vazio. Os cards da seção não mostram o nome do projeto de origem, e a
+  cor e o ícone do projeto no card e no cabeçalho ficam no padrão.
+- **Excluir pelo celular um workspace que está numa seção não roda o script de
+  archive do projeto.** O app busca o script por `repo: id:<repoId>`, não acha o
+  projeto da seção no host e trata "não dá para checar" como "não roda" (sem
+  erro). Para rodar o script, exclua pelo desktop ou tire o card da seção antes.
+- O detalhe do workspace casa PR e issue vinculados pelo `repoId` e pode não
+  mostrá-los; as automações e o "Novo workspace" também usam o `repoId`, então um
+  workspace de seção não aparece sob o projeto real nelas e o "Novo workspace" não
+  pré-seleciona o projeto do último card visitado. O nome ao vivo da tela da
+  sessão atualiza pelo polling de reserva, não pelo evento do projeto.
+- O histórico de agentes não casa sessões antigas de um workspace renomeado ou
+  movido que esteja numa seção (compara o `repoId` dos ids anteriores com o da
+  linha).
+- Membros de folder workspace só casam quando a chave guardada é `local|…` ou sem
+  host; pastas em outro host não foram verificadas.
+- O celular que monta a lista pelo feed da sidebar (`ORCA_SIDEBAR_INPUTS=main`)
+  não recebe as linhas nas seções.
 
 ## Limitações conhecidas
 
@@ -133,8 +183,9 @@ criou uma seção.
 Só neste computador, no estado de interface do Orca desktop
 (`customSidebarSections` em `PersistedUIState`, por perfil). O campo é local do
 desktop: `FORK_LOCAL_UI_FIELDS` o tira do `ui.get` e do `ui.set` de clientes
-pareados. O web pareado e o celular continuam mostrando o Pinned e a lista
-normal de sempre. O contrato do RPC `worktree.set` e o feed não mudam.
+pareados. O web pareado e os celulares delegados continuam mostrando o Pinned e
+a lista normal de sempre; o celular do próprio computador recebe as seções (ver
+a seção seguinte). O contrato do RPC `worktree.set` e o feed não mudam.
 
 Mover um workspace para o WSL muda a chave dele; ele sai da seção e volta
 para a lista normal.
@@ -174,13 +225,17 @@ Pontos de encaixe em arquivos do upstream (conferir em todo sync que mexer neles
 | `src/renderer/src/components/sidebar/worktree-card-meta-row.tsx`                                              | `WorktreeCardFolderLabel` antes do branch ou do "Detached HEAD"                                                                          |
 | `src/renderer/src/store/index.ts`, `types.ts`, `slices/store-test-helpers.ts`                                 | Registro do slice                                                                                                                        |
 | `src/renderer/src/store/slices/ui/ui-slice-hydration-actions.ts`                                              | Hidratação do campo                                                                                                                      |
+| `src/shared/custom-sidebar-sections/mobile-section-projection.ts`                                             | Projeção pura: projeto de mentira por seção e troca do `repoId` das linhas                                                               |
+| `src/main/runtime/rpc/mobile-custom-sections.ts`                                                              | Lê as seções e aplica a projeção só ao celular do próprio computador                                                                     |
+| `src/main/runtime/rpc/methods/worktree-catalog-methods.ts`, `mobile-project-sections.ts`                      | Chamam a projeção em `worktree.ps` e em `mobileRelay.projectSections`                                                                    |
 | `src/shared/persisted-ui-state-types.ts`, `pairing-local-ui-fields.ts`                                        | Campo persistido e bloqueio para pareados                                                                                                |
 | `src/main/runtime/rpc/methods/ui-state-schema-parity-checks.ts`                                               | Campo fora do schema do RPC                                                                                                              |
 | `src/shared/wsl-move/wsl-move-ui-dispositions.ts`                                                             | Classificação do campo na migração para o WSL                                                                                            |
 | `src/renderer/src/i18n/locales/en.json`, `pt.json`                                                            | Bloco `customSections`                                                                                                                   |
 
 O modo `ORCA_SIDEBAR_INPUTS=main` (chave escura, barrada no empacotamento) não
-recebe as seções. O app do celular também não.
+recebe as seções nas linhas da sidebar. O celular só as recebe pelo caminho
+`worktree.ps` mais `mobileRelay.projectSections` (ver acima).
 
 ## Testes
 
@@ -193,6 +248,16 @@ recebe as seções. O app do celular também não.
   nenhuma gravação se ela falhar; Pin/Unpin ao mover; Pinned não apagável;
   arrasto assumido só nas seções; seção cheia não faz Unpin; eco de
   sincronização durante escrita; bloqueio no cliente web.
+- `src/shared/custom-sidebar-sections/mobile-section-projection.test.ts`:
+  membro, host local com e sem `local`, cópia em outro host, fixado, filhos de
+  linhagem, seção em branco e sem membro (mesmo objeto de volta) e o catálogo
+  que o celular lê com o schema dele.
+- `mobile/src/worktree/custom-sections-phone-list.test.ts`: o `buildSections`
+  real do app com as duas respostas projetadas (ordem do sort Manual, seção
+  vazia, filho sob o pai). Roda com o vitest de `mobile/`, não com o da raiz.
+- `src/main/runtime/rpc/mobile-custom-sections.test.ts`: só o celular do próprio
+  computador recebe a projeção; delegado, web e sem cliente não; os dois métodos
+  RPC passam pela projeção.
 - `src/main/runtime/rpc/methods/client-ui-fork-local-fields.test.ts`: o campo
   não entra pelo `ui.set` nem sai pelo `ui.get` de clientes pareados.
 - `src/renderer/src/components/sidebar/custom-sections/custom-section-drop.test.ts`:

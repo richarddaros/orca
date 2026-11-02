@@ -1,6 +1,7 @@
 import { defineMethod } from '../core'
 import { resolveWorktreeCatalogSnapshot } from '../worktree-catalog-snapshot'
 import { coarsenWorktreePsActivity } from '../worktree-ps-coarse-activity'
+import { projectWorktreePsCustomSections } from '../mobile-custom-sections'
 import { markWorktreePsOtherClientRows } from '../worktree-ps-other-client-marks'
 import { supportsWorktreeVisibilitySourceDefaults } from '../worktree-visibility-client-capability'
 import {
@@ -21,18 +22,22 @@ export const WORKTREE_CATALOG_METHODS = [
     params: WorktreePsParams,
     handler: async (params, context) => {
       const pendingAtScan = snapshotPendingWorktreeRemovals()
-      const result = markWorktreePsOtherClientRows(
-        projectWorktreePsRemovals(
-          await context.runtime.getWorktreePs(
-            params.limit,
-            supportsWorktreeVisibilitySourceDefaults(
-              context,
-              params.supportsWorktreeVisibilitySourceDefaults
+      // Why: sections file rows before the snapshot id or row delta is computed, so a poll compares what the phone sees.
+      const result = projectWorktreePsCustomSections(
+        markWorktreePsOtherClientRows(
+          projectWorktreePsRemovals(
+            await context.runtime.getWorktreePs(
+              params.limit,
+              supportsWorktreeVisibilitySourceDefaults(
+                context,
+                params.supportsWorktreeVisibilitySourceDefaults
+              ),
+              params.includeAgentWait === true
             ),
-            params.includeAgentWait === true
+            context,
+            pendingAtScan
           ),
-          context,
-          pendingAtScan
+          context
         ),
         context
       )
