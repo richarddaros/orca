@@ -302,7 +302,7 @@ index 181ccabbbe9c4948a9725fb1db907a68e9de01fc..67f31facf85562b67adbfbd04ce28ddd
  process.send!({ consoleProcessList });
  process.exit(0);
 diff --git a/src/unix/pty.cc b/src/unix/pty.cc
-index 7b4b9e1f990fbf95b51528bb56dc9717f5b87532..e43049b8b4ae1aaecc204b98ed8f3ebc9c31f2e9 100644
+index 7b4b9e1f990fbf95b51528bb56dc9717f5b87532..381d59e11bf158d269335c8231b407fc9c93ca19 100644
 --- a/src/unix/pty.cc
 +++ b/src/unix/pty.cc
 @@ -23,8 +23,11 @@
@@ -317,15 +317,7 @@ index 7b4b9e1f990fbf95b51528bb56dc9717f5b87532..e43049b8b4ae1aaecc204b98ed8f3ebc
  
  #include <sys/types.h>
  #include <sys/stat.h>
-@@ -37,6 +40,7 @@
- /* http://www.gnu.org/software/gnulib/manual/html_node/forkpty.html */
- #if defined(__linux__)
- #include <pty.h>
-+#include <sys/syscall.h>
- #elif defined(__APPLE__)
- #include <util.h>
- #elif defined(__FreeBSD__)
-@@ -47,6 +51,39 @@
+@@ -47,6 +50,39 @@
  #include <termios.h>
  #endif
  
@@ -365,7 +357,7 @@ index 7b4b9e1f990fbf95b51528bb56dc9717f5b87532..e43049b8b4ae1aaecc204b98ed8f3ebc
  /* Some platforms name VWERASE and VDISCARD differently */
  #if !defined(VWERASE) && defined(VWERSE)
  #define VWERASE	VWERSE
-@@ -67,6 +104,9 @@
+@@ -67,6 +103,9 @@
  #include <sys/event.h>
  #include <sys/sysctl.h>
  #include <termios.h>
@@ -375,7 +367,7 @@ index 7b4b9e1f990fbf95b51528bb56dc9717f5b87532..e43049b8b4ae1aaecc204b98ed8f3ebc
  #endif
  
  /* NSIG - macro for highest signal + 1, should be defined */
-@@ -167,6 +207,7 @@ void SetupExitCallback(Napi::Env env, Napi::Function cb, pid_t pid) {
+@@ -169,6 +208,7 @@ void SetupExitCallback(Napi::Env env, Napi::Function cb, pid_t pid) {
          }
        }
      }
@@ -383,22 +375,17 @@ index 7b4b9e1f990fbf95b51528bb56dc9717f5b87532..e43049b8b4ae1aaecc204b98ed8f3ebc
  #else
      while (true) {
        errno = 0;
-@@ -228,6 +269,14 @@ Napi::Value PtyGetProc(const Napi::CallbackInfo& info);
+@@ -228,6 +268,9 @@ Napi::Value PtyGetProc(const Napi::CallbackInfo& info);
  static int
  pty_nonblock(int);
  
-+#if !defined(__APPLE__)
-+static void
-+pty_close_inherited_fds(void);
-+#endif
-+
 +static int
 +pty_cloexec(int);
 +
  #if defined(__APPLE__)
  static char *
  pty_getproc(int);
-@@ -237,13 +286,23 @@ pty_getproc(int, char *);
+@@ -237,13 +280,23 @@ pty_getproc(int, char *);
  #endif
  
  #if defined(__APPLE__) || defined(__OpenBSD__)
@@ -423,7 +410,7 @@ index 7b4b9e1f990fbf95b51528bb56dc9717f5b87532..e43049b8b4ae1aaecc204b98ed8f3ebc
  #endif
  
  struct DelBuf {
-@@ -345,8 +404,8 @@ Napi::Value PtyFork(const Napi::CallbackInfo& info) {
+@@ -345,8 +398,8 @@ Napi::Value PtyFork(const Napi::CallbackInfo& info) {
    term->c_cc[VSTATUS] = 20;
    #endif
  
@@ -434,7 +421,7 @@ index 7b4b9e1f990fbf95b51528bb56dc9717f5b87532..e43049b8b4ae1aaecc204b98ed8f3ebc
  
    // helperPath
    std::string helper_path = info[9].As<Napi::String>();
-@@ -367,14 +426,18 @@ Napi::Value PtyFork(const Napi::CallbackInfo& info) {
+@@ -367,14 +420,18 @@ Napi::Value PtyFork(const Napi::CallbackInfo& info) {
      argv[i + 3] = strdup(arg.c_str());
    }
  
@@ -457,16 +444,7 @@ index 7b4b9e1f990fbf95b51528bb56dc9717f5b87532..e43049b8b4ae1aaecc204b98ed8f3ebc
  #else
    int argc = argv_.Length();
    int argl = argc + 2;
-@@ -433,6 +496,8 @@ Napi::Value PtyFork(const Napi::CallbackInfo& info) {
-         }
-       }
- 
-+      pty_close_inherited_fds();
-+
-       {
-         char **old = environ;
-         environ = env;
-@@ -445,6 +510,9 @@ Napi::Value PtyFork(const Napi::CallbackInfo& info) {
+@@ -445,6 +502,9 @@ Napi::Value PtyFork(const Napi::CallbackInfo& info) {
        if (pty_nonblock(master) == -1) {
          throw Napi::Error::New(napiEnv, "Could not set master fd to nonblocking.");
        }
@@ -476,44 +454,7 @@ index 7b4b9e1f990fbf95b51528bb56dc9717f5b87532..e43049b8b4ae1aaecc204b98ed8f3ebc
    }
  #endif
  
-@@ -575,6 +643,36 @@ Napi::Value PtyGetProc(const Napi::CallbackInfo& info) {
-   return name_;
- }
- 
-+#if !defined(__APPLE__)
-+/**
-+ * forkpty(3) keeps every descriptor the parent had open, so each shell inherited
-+ * whatever the host process held (Electron's DevTools listening socket, GPU cache
-+ * files). The slave is already on 0-2; macOS gets this from POSIX_SPAWN_CLOEXEC_DEFAULT.
-+ * Runs between fork and exec, so only async-signal-safe calls.
-+ */
-+static void
-+pty_close_inherited_fds(void) {
-+#if defined(__linux__) && defined(SYS_close_range)
-+  if (syscall(SYS_close_range, (unsigned int) 3, ~0U, 0U) == 0) {
-+    return;
-+  }
-+#endif
-+#if defined(__FreeBSD__) || defined(__OpenBSD__)
-+  closefrom(3);
-+#else
-+  // Pre-5.9 kernels lack close_range: cap the sweep so a raised RLIMIT_NOFILE
-+  // (1M+) does not cost a million close() calls before every shell starts.
-+  long max_fd = sysconf(_SC_OPEN_MAX);
-+  if (max_fd < 0 || max_fd > 65536) {
-+    max_fd = 65536;
-+  }
-+  for (long fd = 3; fd < max_fd; fd++) {
-+    close((int) fd);
-+  }
-+#endif
-+}
-+#endif
-+
- /**
-  * Nonblocking FD
-  */
-@@ -586,6 +684,23 @@ pty_nonblock(int fd) {
+@@ -586,6 +646,23 @@ pty_nonblock(int fd) {
    return fcntl(fd, F_SETFL, flags | O_NONBLOCK);
  }
  
@@ -537,7 +478,7 @@ index 7b4b9e1f990fbf95b51528bb56dc9717f5b87532..e43049b8b4ae1aaecc204b98ed8f3ebc
  /**
   * pty_getproc
   * Taken from tmux.
-@@ -684,15 +799,73 @@ pty_getproc(int fd, char *tty) {
+@@ -684,15 +761,73 @@ pty_getproc(int fd, char *tty) {
  #endif
  
  #if defined(__APPLE__)
@@ -613,7 +554,7 @@ index 7b4b9e1f990fbf95b51528bb56dc9717f5b87532..e43049b8b4ae1aaecc204b98ed8f3ebc
  
    for (; count < 3; count++) {
      low_fds[count] = posix_openpt(O_RDWR);
-@@ -706,81 +879,496 @@ pty_posix_spawn(char** argv, char** env,
+@@ -706,84 +841,499 @@ pty_posix_spawn(char** argv, char** env,
                POSIX_SPAWN_SETSID;
    *master = posix_openpt(O_RDWR);
    if (*master == -1) {
@@ -746,15 +687,17 @@ index 7b4b9e1f990fbf95b51528bb56dc9717f5b87532..e43049b8b4ae1aaecc204b98ed8f3ebc
 +    close(*master);
 +    *master = -1;
 +  }
-+
+ 
+-  for (; count > 0; count--) {
+-    close(low_fds[count]);
 +  for (size_t i = 0; i <= count && i < 3; i++) {
 +    if (low_fds[i] != -1) {
 +      close(low_fds[i]);
 +    }
-+  }
-+}
-+#endif
-+
+   }
+ }
+ #endif
+ 
 +#if defined(__APPLE__)
 +/**
 + * Orca: in-process libproc/sysctl process table
@@ -1098,12 +1041,10 @@ index 7b4b9e1f990fbf95b51528bb56dc9717f5b87532..e43049b8b4ae1aaecc204b98ed8f3ebc
 +    Napi::Env env = Env();
 +    deferred_.Resolve(found_ ? Napi::Value(Napi::String::New(env, path_)) : env.Null());
 +  }
- 
--  for (; count > 0; count--) {
--    close(low_fds[count]);
++
 +  void OnError(const Napi::Error& error) override {
 +    deferred_.Reject(error.Value());
-   }
++  }
 +
 + private:
 +  Napi::Promise::Deferred deferred_;
@@ -1131,10 +1072,13 @@ index 7b4b9e1f990fbf95b51528bb56dc9717f5b87532..e43049b8b4ae1aaecc204b98ed8f3ebc
 +
 +Napi::Value OrcaReadProcessPath(const Napi::CallbackInfo& info) {
 +  return orca_queue_path_worker(info, false);
- }
- #endif
- 
-@@ -793,6 +1381,11 @@ Napi::Object init(Napi::Env env, Napi::Object exports) {
++}
++#endif
++
+ /**
+  * Init
+  */
+@@ -793,6 +1343,11 @@ Napi::Object init(Napi::Env env, Napi::Object exports) {
    exports.Set("open",    Napi::Function::New(env, PtyOpen));
    exports.Set("resize",  Napi::Function::New(env, PtyResize));
    exports.Set("process", Napi::Function::New(env, PtyGetProc));
@@ -2191,3 +2135,153 @@ diff --git a/src/worker/conoutSocketWorker.ts b/src/worker/conoutSocketWorker.ts
    server.listen(getWorkerPipeName(conoutPipeName));
    if (!parentPort) {
      throw new Error('worker_threads parentPort is null');
+diff --git a/src/unix/pty.cc b/src/unix/pty.cc
+--- a/src/unix/pty.cc
++++ b/src/unix/pty.cc
+@@ -1337,7 +1337,19 @@
+  * Init
+  */
+-
++
++Napi::Value PtyForegroundGroup(const Napi::CallbackInfo& info) {
++  Napi::Env env = info.Env();
++  if (info.Length() != 1 || !info[0].IsNumber()) {
++    throw Napi::TypeError::New(env, "Expected a PTY master descriptor");
++  }
++  const int fd = info[0].As<Napi::Number>().Int32Value();
++  const pid_t group = fd < 0 ? -1 : tcgetpgrp(fd);
++  if (group > 0) return Napi::Number::New(env, group);
++  return env.Null();
++}
++
+ Napi::Object init(Napi::Env env, Napi::Object exports) {
++  exports.Set("foregroundProcessGroup", Napi::Function::New(env, PtyForegroundGroup));
+   exports.Set("fork",    Napi::Function::New(env, PtyFork));
+   exports.Set("open",    Napi::Function::New(env, PtyOpen));
+   exports.Set("resize",  Napi::Function::New(env, PtyResize));
+diff --git a/src/unixTerminal.ts b/src/unixTerminal.ts
+--- a/src/unixTerminal.ts
++++ b/src/unixTerminal.ts
+@@ -252,6 +252,15 @@
+     } catch (e) { /* swallow */ }
+   }
+ 
++  /**
++   * Gets the foreground process group from the master: null once the master is closed,
++   * undefined when the native addon predates this export.
++   */
++  public getForegroundProcessGroup(): number | null | undefined {
++    if (this._fd < 0) return null;
++    return typeof pty.foregroundProcessGroup === 'function' ? pty.foregroundProcessGroup(this._fd) : undefined;
++  }
++
+   /**
+    * Gets the name of the process.
+    */
+diff --git a/lib/unixTerminal.js b/lib/unixTerminal.js
+--- a/lib/unixTerminal.js
++++ b/lib/unixTerminal.js
+@@ -233,6 +233,10 @@
+         }
+         catch (e) { /* swallow */ }
+     };
++    UnixTerminal.prototype.getForegroundProcessGroup = function () {
++        if (this._fd < 0) return null;
++        return typeof pty.foregroundProcessGroup === 'function' ? pty.foregroundProcessGroup(this._fd) : undefined;
++    };
+     Object.defineProperty(UnixTerminal.prototype, "process", {
+         /**
+          * Gets the name of the process.
+diff --git a/typings/node-pty.d.ts b/typings/node-pty.d.ts
+--- a/typings/node-pty.d.ts
++++ b/typings/node-pty.d.ts
+@@ -114,6 +114,7 @@
+    * An interface representing a pseudoterminal, on Windows this is emulated via the winpty library.
+    */
+   export interface IPty {
++    getForegroundProcessGroup?(): number | null | undefined;
+     /**
+      * The process ID of the outer process.
+      */
+diff --git a/src/native.d.ts b/src/native.d.ts
+--- a/src/native.d.ts
++++ b/src/native.d.ts
+@@ -19,6 +19,7 @@
+ }
+-
++
+ interface IUnixNative {
++  foregroundProcessGroup?(fd: number): number | null;
+   fork(file: string, args: string[], parsedEnv: string[], cwd: string, cols: number, rows: number, uid: number, gid: number, useUtf8: boolean, helperPath: string, onExitCallback: (code: number, signal: number) => void): IUnixProcess;
+   open(cols: number, rows: number): IUnixOpenProcess;
+   process(fd: number, pty?: string): string;
+diff --git a/src/unix/pty.cc b/src/unix/pty.cc
+index 297b4719bb37ab92f947e926d9cb765a9704d553..29b23fcd503734e6719ac25e7eb3e1346bcca22f 100644
+--- a/src/unix/pty.cc
++++ b/src/unix/pty.cc
+@@ -40,6 +40,7 @@
+ /* http://www.gnu.org/software/gnulib/manual/html_node/forkpty.html */
+ #if defined(__linux__)
+ #include <pty.h>
++#include <sys/syscall.h>
+ #elif defined(__APPLE__)
+ #include <util.h>
+ #elif defined(__FreeBSD__)
+@@ -268,6 +269,11 @@ Napi::Value PtyGetProc(const Napi::CallbackInfo& info);
+ static int
+ pty_nonblock(int);
+ 
++#if !defined(__APPLE__)
++static void
++pty_close_inherited_fds(void);
++#endif
++
+ static int
+ pty_cloexec(int);
+ 
+@@ -490,6 +496,8 @@ Napi::Value PtyFork(const Napi::CallbackInfo& info) {
+         }
+       }
+ 
++      pty_close_inherited_fds();
++
+       {
+         char **old = environ;
+         environ = env;
+@@ -635,6 +643,36 @@ Napi::Value PtyGetProc(const Napi::CallbackInfo& info) {
+   return name_;
+ }
+ 
++#if !defined(__APPLE__)
++/**
++ * forkpty(3) keeps every descriptor the parent had open, so each shell inherited
++ * whatever the host process held (Electron's DevTools listening socket, GPU cache
++ * files). The slave is already on 0-2; macOS gets this from POSIX_SPAWN_CLOEXEC_DEFAULT.
++ * Runs between fork and exec, so only async-signal-safe calls.
++ */
++static void
++pty_close_inherited_fds(void) {
++#if defined(__linux__) && defined(SYS_close_range)
++  if (syscall(SYS_close_range, (unsigned int) 3, ~0U, 0U) == 0) {
++    return;
++  }
++#endif
++#if defined(__FreeBSD__) || defined(__OpenBSD__)
++  closefrom(3);
++#else
++  // Pre-5.9 kernels lack close_range: cap the sweep so a raised RLIMIT_NOFILE
++  // (1M+) does not cost a million close() calls before every shell starts.
++  long max_fd = sysconf(_SC_OPEN_MAX);
++  if (max_fd < 0 || max_fd > 65536) {
++    max_fd = 65536;
++  }
++  for (long fd = 3; fd < max_fd; fd++) {
++    close((int) fd);
++  }
++#endif
++}
++#endif
++
+ /**
+  * Nonblocking FD
+  */
