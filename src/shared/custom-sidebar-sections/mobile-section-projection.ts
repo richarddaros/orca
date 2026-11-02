@@ -37,6 +37,11 @@ function namedUserSections(stored: unknown): CustomSidebarSection[] {
   )
 }
 
+/** True when a section has a header to draw; without one the projection moves no row. */
+export function hasNamedCustomSections(stored: unknown): boolean {
+  return namedUserSections(stored).length > 0
+}
+
 /** A local row may arrive without a host while its stored key spells `local`; both name the same copy. */
 function identitiesOf(worktreeId: string, hostId: RuntimeWorktreePsSummary['hostId']): string[] {
   if (hostId === undefined || hostId === LOCAL_EXECUTION_HOST_ID) {

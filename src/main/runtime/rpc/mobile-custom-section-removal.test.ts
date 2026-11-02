@@ -158,9 +158,10 @@ describe('refuseSkippedArchiveHookForSectionMember', () => {
     ['no section is stored', undefined],
     ['only Pinned is stored', sectionsState()]
   ])('lets the delete through when %s', async (_label, sections) => {
-    const { run, getRepoHooks } = setup({ sections })
+    const { run, getRepoHooks, getWorktreePs } = setup({ sections })
 
     await expect(run({})).resolves.toBeUndefined()
+    expect(getWorktreePs).not.toHaveBeenCalled()
     expect(getRepoHooks).not.toHaveBeenCalled()
   })
 

@@ -3,7 +3,10 @@
  * under a sidebar section carries a stand-in repo id the host cannot find, so the phone skips the script and
  * deletes anyway. Refuse that delete here, unless the phone waived the script, and let it offer "Delete Anyway".
  */
-import { projectCustomSectionsOntoPs } from '../../../shared/custom-sidebar-sections/mobile-section-projection'
+import {
+  hasNamedCustomSections,
+  projectCustomSectionsOntoPs
+} from '../../../shared/custom-sidebar-sections/mobile-section-projection'
 import { LOCAL_EXECUTION_HOST_ID } from '../../../shared/execution-host'
 import type { RuntimeWorktreePsResult } from '../../../shared/runtime-worktree-contracts'
 import { WorktreeArchiveHookFailedError } from '../../../shared/worktree/archive-hook-removal-gate'
@@ -57,7 +60,8 @@ export async function refuseSkippedArchiveHookForSectionMember(
   }
   const stored = storedSectionsFor(context)
   const worktreeId = getExplicitWorktreeIdSelector(params.worktree)
-  if (stored === undefined || stored === null || !worktreeId) {
+  // Why: with no named section (only Pinned left) no card is filed, so the full row scan below would buy nothing.
+  if (!hasNamedCustomSections(stored) || !worktreeId) {
     return
   }
   const rows = await context.runtime.getWorktreePs(

@@ -156,19 +156,37 @@ aparelho**:
   Anyway", que dispensa o script de propósito (`allowFailedArchiveHook`). Projeto
   sem script exclui direto, e para rodar o script exclua pelo desktop. A guarda é
   `mobile-custom-section-removal.ts`, chamada no começo do `worktree.rm`.
-  Limites da guarda, lidos no código e não testados no aparelho: ela decide pelas
-  seções guardadas no momento do `worktree.rm`, e o app não manda o `repoId` que
-  mostrou. Se o card sai da seção no desktop com a confirmação já aberta no
-  celular, o app ainda pergunta pelo projeto de mentira, pula o script, e a guarda
-  deixa passar porque o card já não está numa seção: o script é pulado sem aviso
-  (o host só devolve e registra o aviso "archive hook skipped"). O inverso também
-  ocorre: um card posto
-  numa seção depois de listado no projeto real, excluído com "Skip", é recusado
-  com o texto de "não deu para verificar", e um toque em "Delete Anyway" resolve.
-  A mensagem que o app mostra começa com o texto genérico "Archive hook failed",
-  mas o script não rodou; a nota do fork, no fim, diz o motivo. Se o app da loja
-  não tiver "Delete Anyway", o card de seção com script de archive só se exclui
-  pelo desktop.
+  Limites da guarda, lidos no código e não testados no aparelho:
+  - Ela decide pelas seções guardadas no momento do `worktree.rm`, e o
+    `worktree.rm` não leva o `repoId` que o app mostrou. Se o card sai da seção no
+    desktop com a confirmação já aberta no celular, o app ainda pergunta pelo
+    projeto de mentira (`repo.hooks` com `id:custom-section:<id>`), pula o script
+    e chama o `worktree.rm`; a guarda deixa passar porque o card já não está numa
+    seção, e o script é pulado sem aviso para o usuário (o host só registra o
+    aviso "archive hook skipped" no log). Há defesa possível: guardar por conexão,
+    por poucos segundos, que o celular leu `repo.hooks` com um id `custom-section:`
+    e recusar nesse intervalo. Não foi feita: exige um terceiro encaixe no
+    upstream (`repo.hooks`) e estado em memória por conexão, não se verificou que a
+    conexão do celular é estável entre as duas chamadas, e a janela pede que o
+    próprio usuário tire o card da seção no desktop enquanto confirma a exclusão
+    no celular.
+  - O inverso também ocorre: um card posto numa seção depois de listado no projeto
+    real, excluído com "Skip", é recusado com o texto de "não deu para verificar",
+    e um toque em "Delete Anyway" resolve.
+  - A mensagem que o app mostra começa com o texto genérico "Archive hook failed",
+    mas o script não rodou; a nota do fork, no fim, diz o motivo.
+  - `repo.hooks` não aceita host (nem o do app envia um). Um `repoId` registrado em
+    dois hosts dá `selector_ambiguous`, e a guarda recusa o card de seção desse
+    projeto mesmo que ele não tenha script; "Delete Anyway" resolve. Repo `ssh:`
+    informa sem hooks, então passa.
+  - Se o app da loja não tiver "Delete Anyway", o card de seção com script de
+    archive só se exclui pelo desktop.
+- Novo workspace: o composer do celular decide se um branch está ocupado pelos
+  `repoId` das linhas que recebe, então o branch de um card de seção não conta
+  como ocupado no projeto real. Quem barra é o host, que lista os worktrees do
+  projeto (`runtime-worktree-create-git.ts`): com o reuso explícito do branch ele
+  recusa com "Branch … is already checked out at …"; sem reuso ele considera o
+  branch ocupado. Lido no código, não testado no aparelho.
 - O detalhe do workspace casa o PR vinculado pelo `repoId`; num card de seção o PR
   do branch pode aparecer duas vezes. A issue vinculada não muda.
 - Histórico de agentes: a aba do projeto de um card de seção cobre os workspaces

@@ -3,6 +3,7 @@ import type { MobileProjectSectionsResult } from '../mobile-project-sections-con
 import type { RuntimeWorktreePsResult } from '../runtime-worktree-contracts'
 import { ProjectSectionCatalogSchema } from '../project-section-catalog-schema'
 import {
+  hasNamedCustomSections,
   mobileSectionRepoId,
   projectCustomSectionsOntoCatalog,
   projectCustomSectionsOntoPs
@@ -203,5 +204,20 @@ describe('what the projection leaves alone', () => {
     )
 
     expect(projected.worktrees[0]?.repoId).toBe(mobileSectionRepoId('s2'))
+  })
+})
+
+describe('hasNamedCustomSections', () => {
+  it.each([
+    ['nothing is stored', undefined, false],
+    ['only Pinned is stored', sectionsState(), false],
+    [
+      'the only other section has a blank name',
+      sectionsState({ id: 's1', name: ' ', members: [] }),
+      false
+    ],
+    ['a named section is stored', sectionsState({ id: 's1', name: 'MCF', members: [] }), true]
+  ])('answers for the case where %s', (_label, stored, expected) => {
+    expect(hasNamedCustomSections(stored)).toBe(expected)
   })
 })
