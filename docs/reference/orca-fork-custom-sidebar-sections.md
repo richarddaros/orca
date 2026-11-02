@@ -104,7 +104,8 @@ Onde o nome entra depende do layout do card:
   linha de baixo para um card sem identidade (o upstream centraliza o título
   nesse caso e testa isso), então a pasta não cria linha nem aumenta o card. O
   chip não encolhe: o nome cresce até 6rem e, se for maior, corta com `…`. Quem
-  trunca primeiro é o título.
+  trunca primeiro é o título. Esse estilo vale também com o layout compacto
+  ligado, porque o estilo experimental o sobrepõe.
 
 Ao contrário do resto deste doc, isso não depende das seções: vale desde a
 primeira abertura, em todo card git dos dois layouts, mesmo para quem nunca
@@ -114,7 +115,7 @@ criou uma seção.
   seções), o quadro de status (board) e a lista de worktrees do painel de
   folder workspace.
 - Folder workspaces já mostravam a pasta e continuam iguais nos dois layouts. O
-  layout compacto não muda e não mostra a pasta.
+  layout compacto, sem o estilo experimental, não muda e não mostra a pasta.
 - O app do celular tem cards próprios e não muda. As seções chegam a ele pelas
   respostas do host (ver "No celular do próprio computador").
 
@@ -232,9 +233,15 @@ aparelho**:
 - Quanto a pasta e o branch truncam no card estreito não tem teste: depende de
   layout real, que o teste unitário não calcula e o e2e não mede. No estilo
   experimental, o chip da pasta foi conferido por captura de fixture (larguras
-  de 288 e 440 px, temas claro e escuro, título longo e pasta longa), sem
-  fixture versionada. O primeiro desenho do chip deixava encolher até o ícone e
-  o título passava por cima; por isso ele não encolhe.
+  de 220, 260, 288 e 440 px, título longo e pasta longa; claro e escuro a 288 e
+  440 px), sem fixture versionada. O primeiro desenho do chip deixava encolher
+  até o ícone e o título passava por cima; por isso ele não encolhe, e os
+  testes prendem as classes `shrink-0` e `max-w-24` do chip.
+- Largura estreita no estilo experimental: a sidebar nasce com 280 px e o mínimo
+  é 220 px. Como o chip do projeto e a pasta não encolhem, o título é quem cede.
+  A 260 px ele fica com 2 a 8 letras num projeto de nome longo (como
+  `mcf-infra`); a 220 px, com 0 a 1. A pasta ficar sempre visível foi a escolha
+  do dono. Se isso incomodar, a saída é esconder a pasta abaixo de uma largura.
 - Recolher uma seção vale para todos os hosts.
 - Mover e subir uma seção contam o Pinned mesmo quando ele está escondido por
   não ter nenhum workspace fixado.
@@ -362,8 +369,9 @@ recebe as seções nas linhas da sidebar. O celular só as recebe pelo caminho
 - `src/renderer/src/components/sidebar/WorktreeCard.worktree-folder.test.tsx`:
   o card padrão mostra a pasta antes do branch e do "Detached HEAD" e cria a
   linha de baixo num card que não tinha nada nela; o estilo experimental mostra
-  a pasta antes do título, sem linha de meta; compacto e folder workspace não
-  mostram a pasta.
+  uma só pasta, depois do chip do projeto e antes do título, sem linha de meta
+  (também com o compacto ligado) e com as classes que a impedem de encolher;
+  compacto sem o estilo experimental e folder workspace não mostram a pasta.
 - `tests/e2e/custom-sidebar-sections.spec.ts`: no Orca real, com sort Recent,
   prova primeiro que a atividade reordena a lista normal e depois que a seção
   "MCF" criada pelo botão mantém a ordem escolhida; um segundo teste fecha e
