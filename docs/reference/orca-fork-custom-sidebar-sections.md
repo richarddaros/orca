@@ -156,6 +156,19 @@ aparelho**:
   Anyway", que dispensa o script de propósito (`allowFailedArchiveHook`). Projeto
   sem script exclui direto, e para rodar o script exclua pelo desktop. A guarda é
   `mobile-custom-section-removal.ts`, chamada no começo do `worktree.rm`.
+  Limites da guarda, lidos no código e não testados no aparelho: ela decide pelas
+  seções guardadas no momento do `worktree.rm`, e o app não manda o `repoId` que
+  mostrou. Se o card sai da seção no desktop com a confirmação já aberta no
+  celular, o app ainda pergunta pelo projeto de mentira, pula o script, e a guarda
+  deixa passar porque o card já não está numa seção: o script é pulado sem aviso
+  (o host só devolve e registra o aviso "archive hook skipped"). O inverso também
+  ocorre: um card posto
+  numa seção depois de listado no projeto real, excluído com "Skip", é recusado
+  com o texto de "não deu para verificar", e um toque em "Delete Anyway" resolve.
+  A mensagem que o app mostra começa com o texto genérico "Archive hook failed",
+  mas o script não rodou; a nota do fork, no fim, diz o motivo. Se o app da loja
+  não tiver "Delete Anyway", o card de seção com script de archive só se exclui
+  pelo desktop.
 - O detalhe do workspace casa o PR vinculado pelo `repoId`; num card de seção o PR
   do branch pode aparecer duas vezes. A issue vinculada não muda.
 - Histórico de agentes: a aba do projeto de um card de seção cobre os workspaces
@@ -270,7 +283,9 @@ recebe as seções nas linhas da sidebar. O celular só as recebe pelo caminho
   card de seção (membro ou filho de linhagem) quando o projeto real tem script de
   archive ou os hooks não leem, e deixa passar com waiver, com `runHooks`, sem
   script, fora de seção, fixado, seletor que não é id, celular delegado, web e
-  sem cliente; o `worktree.rm` recusa antes de remover.
+  sem cliente; com `hostId` informado ela escolhe a cópia certa (e lê `local`
+  como a linha sem host); o `worktree.rm` recusa antes de remover, remove depois
+  do "Delete Anyway" e remove para web, delegado e sem cliente sem ler as linhas.
 - `src/main/runtime/rpc/mobile-custom-sections.test.ts`: só o celular do próprio
   computador recebe a projeção; delegado, web e sem cliente não; os dois métodos
   RPC passam pela projeção.

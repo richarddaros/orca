@@ -4,6 +4,7 @@
  * deletes anyway. Refuse that delete here, unless the phone waived the script, and let it offer "Delete Anyway".
  */
 import { projectCustomSectionsOntoPs } from '../../../shared/custom-sidebar-sections/mobile-section-projection'
+import { LOCAL_EXECUTION_HOST_ID } from '../../../shared/execution-host'
 import type { RuntimeWorktreePsResult } from '../../../shared/runtime-worktree-contracts'
 import { WorktreeArchiveHookFailedError } from '../../../shared/worktree/archive-hook-removal-gate'
 import { getExplicitWorktreeIdSelector } from '../runtime-worktree-selection'
@@ -68,8 +69,10 @@ export async function refuseSkippedArchiveHookForSectionMember(
   if (filedRows === rows) {
     return
   }
+  // Why: `worktree.ps` omits the host of a local row, and the projection reads that as `local`; so does this match.
   const isTarget = (row: RuntimeWorktreePsResult['worktrees'][number]): boolean =>
-    row.worktreeId === worktreeId && (params.hostId === undefined || row.hostId === params.hostId)
+    row.worktreeId === worktreeId &&
+    (params.hostId === undefined || (row.hostId ?? LOCAL_EXECUTION_HOST_ID) === params.hostId)
   const real = rows.worktrees.find(isTarget)
   const filed = filedRows.worktrees.find(isTarget)
   if (!real || !filed || filed.repoId === real.repoId) {

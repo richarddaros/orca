@@ -112,6 +112,33 @@ describe('refuseSkippedArchiveHookForSectionMember', () => {
     await expect(setup().run(params)).resolves.toBeUndefined()
   })
 
+  describe('when the caller names the host', () => {
+    const twins = psResult(
+      psRow('a', { repoId: 'real-repo', hostId: 'ssh:builder', path: '/builder/a' }),
+      psRow('a', { repoId: 'real-repo', path: '/work/a' })
+    )
+    const filedOnBuilder = sectionsState({ id: 's1', name: 'MCF', members: ['ssh:builder|a'] })
+
+    it('refuses the copy it names and lets its same-id twin through', async () => {
+      const { run } = setup({ rows: twins, sections: filedOnBuilder })
+
+      await expect(run({ hostId: 'ssh:builder' })).rejects.toMatchObject({
+        code: ARCHIVE_HOOK_FAILED_REMOVAL_CODE,
+        data: { worktreePath: '/builder/a' }
+      })
+      await expect(run({ hostId: 'local' })).resolves.toBeUndefined()
+    })
+
+    it('reads a local row without a host as the local host', async () => {
+      const { run } = setup()
+
+      await expect(run({ hostId: 'local' })).rejects.toMatchObject({
+        code: ARCHIVE_HOOK_FAILED_REMOVAL_CODE
+      })
+      await expect(run({ hostId: 'ssh:builder' })).resolves.toBeUndefined()
+    })
+  })
+
   it('lets a selector that is not an id through without reading the rows', async () => {
     const { run, getWorktreePs } = setup()
 
@@ -151,15 +178,18 @@ describe('refuseSkippedArchiveHookForSectionMember', () => {
 
 describe('worktree.rm', () => {
   function dispatcher() {
-    const { runtime } = setup()
-    const removeManagedWorktree = vi.fn()
-    // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: the guard runs first and reads only these runtime members.
+    const { runtime, getWorktreePs } = setup()
+    const removeManagedWorktree = vi.fn(async () => ({}))
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: the handler reads only these runtime members up to the removal.
     const typed = {
       ...runtime,
       getRuntimeId: () => 'test-runtime',
+      listRepos: () => [],
+      showManagedWorktree: async () => ({ hostId: 'local' }),
       removeManagedWorktree
     } as unknown as OrcaRuntimeService
     return {
+      getWorktreePs,
       removeManagedWorktree,
       dispatcher: new RpcDispatcher({ runtime: typed, methods: WORKTREE_METHODS })
     }
@@ -181,5 +211,32 @@ describe('worktree.rm', () => {
     expect(reply.ok).toBe(false)
     expect(reply.error.code).toBe(ARCHIVE_HOOK_FAILED_REMOVAL_CODE)
     expect(removeManagedWorktree).not.toHaveBeenCalled()
+  })
+
+  it('removes the card once the phone waives the script (Delete Anyway)', async () => {
+    const { dispatcher: d, removeManagedWorktree } = dispatcher()
+    const reply = JSON.parse(
+      JSON.stringify(
+        await d.dispatch(rm({ runHooks: false, allowFailedArchiveHook: true }), {
+          clientKind: 'mobile'
+        })
+      )
+    )
+
+    expect(reply.ok).toBe(true)
+    expect(removeManagedWorktree).toHaveBeenCalledTimes(1)
+  })
+
+  it.each([
+    ['the web client', { clientKind: 'runtime' as const }],
+    ['a delegated phone', { clientKind: 'mobile' as const, pairedDeviceParentId: 'desktop-2' }],
+    ['a caller with no client kind', {}]
+  ])('removes the card for %s without reading the rows', async (_label, client) => {
+    const { dispatcher: d, removeManagedWorktree, getWorktreePs } = dispatcher()
+    const reply = JSON.parse(JSON.stringify(await d.dispatch(rm({ runHooks: false }), client)))
+
+    expect(reply.ok).toBe(true)
+    expect(removeManagedWorktree).toHaveBeenCalledTimes(1)
+    expect(getWorktreePs).not.toHaveBeenCalled()
   })
 })
