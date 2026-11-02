@@ -18,7 +18,7 @@ import { join } from 'node:path'
 import { setTimeout as delay } from 'node:timers/promises'
 import * as pty from 'node-pty'
 import { describe, expect, it } from 'vitest'
-import { getNodePtySpawnHelperCandidates } from '../providers/local-pty-utils'
+import { getNodePtySpawnHelperCandidates } from '../providers/local-pty/local-pty-executable-spawn'
 
 function currentRevokedFdCount(): number {
   return execFileSync('lsof', ['-p', String(process.pid)], { encoding: 'utf8' })
