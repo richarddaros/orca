@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { renderToStaticMarkup } from 'react-dom/server'
 import type { ReactNode } from 'react'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -191,6 +193,15 @@ describe('WorktreeCard worktree folder', () => {
       expect(markup).toContain('<span class="min-w-0 truncate font-mono">pinfish</span>')
     }
   )
+
+  // Why: a class string alone passes even if the token leaves the theme, and the icon would render empty with no error.
+  it('keeps the yellow folder tied to a theme token that main.css still declares', () => {
+    const css = readFileSync(resolve('src/renderer/src/assets/main.css'), 'utf8')
+
+    expect(css).toMatch(/--color-status-warning:\s*var\(--status-warning\);/)
+    // Why two: the light and the dark theme each declare their own yellow.
+    expect(css.match(/--status-warning:\s*#[0-9a-f]{6};/gi)).toHaveLength(2)
+  })
 
   it('puts the project chip first, then the folder, then the title in the new card style', async () => {
     settings = { compactWorktreeCards: false, experimentalNewWorktreeCardStyle: true }

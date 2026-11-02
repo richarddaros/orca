@@ -114,7 +114,12 @@ pasta no meio do texto do card sem disputar com o título. A cor é só do ícon
 em `worktree-card-folder-label.tsx`. O token é do tema, não uma cor crua do
 Tailwind, porque o gate de design (`shadcn(no-raw-colors)`, em
 `check:code-quality:changed`) barra cor crua em código novo; um preenchimento
-translúcido (`/60`) ficou fosco demais nas capturas.
+translúcido (`/60`) ficou fosco demais nas capturas. O dourado do tema claro
+(`#ca8a04`) fica por volta de 2,8 a 2,9 para 1 contra o fundo, um pouco abaixo
+dos 3:1 que a WCAG pede para gráficos (estimativa, sem medição). Foi aceito de
+propósito: o ícone é decorativo (`aria-hidden`) e o nome da pasta carrega a
+informação. O ícone herda a cor de "atenção" do tema; quem retocar
+`--status-warning` por motivo de alerta muda a pasta junto.
 
 Ao contrário do resto deste doc, isso não depende das seções: vale desde a
 primeira abertura, em todo card git dos dois layouts, mesmo para quem nunca
