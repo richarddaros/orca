@@ -12,14 +12,14 @@ import type { RuntimeWorktreePsResult } from '../../../shared/runtime-worktree-c
 import type { RpcContext } from './core'
 import { isHostOwnPhone } from './host-own-phone'
 
-type SectionsContext = Pick<RpcContext, 'clientKind' | 'pairedDeviceParentId'> & {
+export type SectionsContext = Pick<RpcContext, 'clientKind' | 'pairedDeviceParentId'> & {
   runtime: {
     requireStore(): { getUI?: () => { customSidebarSections?: unknown } }
   }
 }
 
 /** Only this host's own phone sees the sections; delegated phones, paired desktops and web clients keep their own view. */
-function storedSectionsFor(context: SectionsContext): unknown {
+export function storedSectionsFor(context: SectionsContext): unknown {
   if (!isHostOwnPhone(context)) {
     return undefined
   }

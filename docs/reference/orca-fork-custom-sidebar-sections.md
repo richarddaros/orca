@@ -146,12 +146,16 @@ aparelho**:
 - Um projeto cujos workspaces estão todos em seções continua na lista como
   cabeçalho vazio. Os cards da seção não mostram o nome do projeto de origem, e a
   cor e o ícone do projeto no card e no cabeçalho ficam no padrão.
-- **Excluir pelo celular um workspace que está numa seção não roda o script de
-  archive do projeto.** O app lê o script por `repo.hooks` com `id:<repoId>`, o
-  host não acha o projeto da seção (`repo_not_found`) e o app trata a leitura
-  recusada como "não dá para checar, não roda": manda `worktree.rm` com
-  `runHooks: false` e `force: true`, sem erro na tela. O host não impede. Para
-  rodar o script, exclua pelo desktop ou tire o card da seção antes.
+- **Excluir pelo celular um workspace que está numa seção.** O app lê o script de
+  archive do projeto por `repo.hooks` com `id:<repoId>`, não acha o projeto da
+  seção (`repo_not_found`) e, sozinho, pularia o script e excluiria. O host
+  impede isso: o `worktree.rm` do próprio celular, sem rodar nem dispensar o
+  script, é recusado com a falha de archive (`worktree_archive_hook_failed`,
+  "outcome unverifiable") quando o projeto real tem script de archive, ou quando o
+  host não consegue ler os hooks dele. O app mostra a falha e oferece "Delete
+  Anyway", que dispensa o script de propósito (`allowFailedArchiveHook`). Projeto
+  sem script exclui direto, e para rodar o script exclua pelo desktop. A guarda é
+  `mobile-custom-section-removal.ts`, chamada no começo do `worktree.rm`.
 - O detalhe do workspace casa o PR vinculado pelo `repoId`; num card de seção o PR
   do branch pode aparecer duas vezes. A issue vinculada não muda.
 - Histórico de agentes: a aba do projeto de um card de seção cobre os workspaces
@@ -200,17 +204,18 @@ para a lista normal.
 
 Módulos do fork:
 
-| Arquivo                                                                      | Papel                                                                                   |
-| ---------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
-| `src/shared/custom-sidebar-sections/custom-sidebar-sections-state.ts`        | Tipos, normalização e edições puras (criar, mover, apagar, reconciliar o Pinned)        |
-| `src/shared/custom-sidebar-sections/custom-section-plan.ts`                  | Encaixe na montagem da lista: posição das seções, ordem fixa e linhagem                 |
-| `src/shared/custom-sidebar-sections/custom-section-order.ts`                 | Ordem dentro de uma seção: posição salva, filhos por criação, ordem de tela             |
-| `src/renderer/src/store/slices/custom-sidebar-sections.ts`                   | Slice do store, ativação no primeiro uso, gravação e Pin/Unpin                          |
-| `src/renderer/src/components/sidebar/custom-sections/`                       | Botão, diálogos, menu ⋯ da seção, menu do card e arrasto dentro da seção                |
-| `src/renderer/src/components/sidebar/worktree-card-folder-label.tsx`         | Ícone e nome da pasta do worktree na linha de baixo do título do card                   |
-| `src/renderer/src/components/sidebar/custom-sections/custom-section-drop.ts` | Arrasto entre grupos: alvo sob o ponteiro, linha de inserção, drop e saída para a lista |
-| `src/shared/custom-sidebar-sections/mobile-section-projection.ts`            | Projeção pura: projeto de mentira por seção e troca do `repoId` das linhas              |
-| `src/main/runtime/rpc/mobile-custom-sections.ts`                             | Lê as seções e aplica a projeção só ao celular do próprio computador                    |
+| Arquivo                                                                      | Papel                                                                                       |
+| ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `src/shared/custom-sidebar-sections/custom-sidebar-sections-state.ts`        | Tipos, normalização e edições puras (criar, mover, apagar, reconciliar o Pinned)            |
+| `src/shared/custom-sidebar-sections/custom-section-plan.ts`                  | Encaixe na montagem da lista: posição das seções, ordem fixa e linhagem                     |
+| `src/shared/custom-sidebar-sections/custom-section-order.ts`                 | Ordem dentro de uma seção: posição salva, filhos por criação, ordem de tela                 |
+| `src/renderer/src/store/slices/custom-sidebar-sections.ts`                   | Slice do store, ativação no primeiro uso, gravação e Pin/Unpin                              |
+| `src/renderer/src/components/sidebar/custom-sections/`                       | Botão, diálogos, menu ⋯ da seção, menu do card e arrasto dentro da seção                    |
+| `src/renderer/src/components/sidebar/worktree-card-folder-label.tsx`         | Ícone e nome da pasta do worktree na linha de baixo do título do card                       |
+| `src/renderer/src/components/sidebar/custom-sections/custom-section-drop.ts` | Arrasto entre grupos: alvo sob o ponteiro, linha de inserção, drop e saída para a lista     |
+| `src/shared/custom-sidebar-sections/mobile-section-projection.ts`            | Projeção pura: projeto de mentira por seção e troca do `repoId` das linhas                  |
+| `src/main/runtime/rpc/mobile-custom-sections.ts`                             | Lê as seções e aplica a projeção só ao celular do próprio computador                        |
+| `src/main/runtime/rpc/mobile-custom-section-removal.ts`                      | Recusa a exclusão pelo celular de card de seção sem rodar nem dispensar o script de archive |
 
 Pontos de encaixe em arquivos do upstream (conferir em todo sync que mexer neles):
 
@@ -233,7 +238,7 @@ Pontos de encaixe em arquivos do upstream (conferir em todo sync que mexer neles
 | `src/renderer/src/components/sidebar/worktree-card-meta-row.tsx`                                              | `WorktreeCardFolderLabel` antes do branch ou do "Detached HEAD"                                                                          |
 | `src/renderer/src/store/index.ts`, `types.ts`, `slices/store-test-helpers.ts`                                 | Registro do slice                                                                                                                        |
 | `src/renderer/src/store/slices/ui/ui-slice-hydration-actions.ts`                                              | Hidratação do campo                                                                                                                      |
-| `src/main/runtime/rpc/methods/worktree-catalog-methods.ts`, `mobile-project-sections.ts`                      | Chamam a projeção em `worktree.ps` e em `mobileRelay.projectSections`                                                                    |
+| `src/main/runtime/rpc/methods/worktree-catalog-methods.ts`, `mobile-project-sections.ts`, `worktree.ts`       | Chamam a projeção em `worktree.ps` e `mobileRelay.projectSections` e a guarda no `worktree.rm`                                           |
 | `src/shared/persisted-ui-state-types.ts`, `pairing-local-ui-fields.ts`                                        | Campo persistido e bloqueio para pareados                                                                                                |
 | `src/main/runtime/rpc/methods/ui-state-schema-parity-checks.ts`                                               | Campo fora do schema do RPC                                                                                                              |
 | `src/shared/wsl-move/wsl-move-ui-dispositions.ts`                                                             | Classificação do campo na migração para o WSL                                                                                            |
@@ -261,6 +266,11 @@ recebe as seções nas linhas da sidebar. O celular só as recebe pelo caminho
 - `mobile/src/worktree/custom-sections-phone-list.test.ts`: o `buildSections`
   real do app com as duas respostas projetadas (ordem do sort Manual, seção
   vazia, filho sob o pai). Roda com o vitest de `mobile/`, não com o da raiz.
+- `src/main/runtime/rpc/mobile-custom-section-removal.test.ts`: a guarda recusa o
+  card de seção (membro ou filho de linhagem) quando o projeto real tem script de
+  archive ou os hooks não leem, e deixa passar com waiver, com `runHooks`, sem
+  script, fora de seção, fixado, seletor que não é id, celular delegado, web e
+  sem cliente; o `worktree.rm` recusa antes de remover.
 - `src/main/runtime/rpc/mobile-custom-sections.test.ts`: só o celular do próprio
   computador recebe a projeção; delegado, web e sem cliente não; os dois métodos
   RPC passam pela projeção.
