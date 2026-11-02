@@ -28,6 +28,7 @@ import {
   WorktreeSortOrder,
   WorktreeTeardownMissingTerminalsParams
 } from '../../../../shared/rpc-contract/worktree-params'
+import { refuseSkippedArchiveHookForSectionMember } from '../mobile-custom-section-removal'
 import { WORKTREE_CATALOG_METHODS } from './worktree-catalog-methods'
 import { WORKTREE_PROVISIONED_ROOT_METHOD } from './worktree-provisioned-root-method'
 import { waitsForWorktreeRemoval } from '../worktree-removal-marker-projection'
@@ -189,6 +190,8 @@ export const WORKTREE_METHODS = [
     params: WorktreeRemove,
     handler: async (params, context) => {
       const { runtime } = context
+      // Fork: a card filed under a sidebar section on the phone must not skip its archive script unasked.
+      await refuseSkippedArchiveHookForSectionMember(params, context)
       // Translate a paired client's runtime-local host spelling before host-qualified reads.
       let resolvedHostId = resolvePairedCallerHostId(
         () => runtime.listRepos(),
