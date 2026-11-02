@@ -11,6 +11,7 @@ import type { Repo } from '../../../../shared/repo-types'
 import { resolveRepoHeaderColor } from './project-header-color'
 import { formatSparseDirectoryPreview, shouldBeginWorktreeRename } from './worktree-card-model'
 import type { WorktreeCardPresentation } from './worktree-card-presentation'
+import { WorktreeCardFolderLabel } from './worktree-card-folder-label'
 import { WorktreeCardSshHostControl } from './WorktreeCardSshHostControl'
 import { WorktreeTitleInlineRename } from './WorktreeTitleInlineRename'
 import type { WorktreeCardController } from './use-worktree-card-controller'
@@ -91,6 +92,7 @@ export function WorktreeCardHeader({
     showTitleRowPrimary,
     showDeleteQuickAction,
     showTitleRowIndicators,
+    showTitleRowFolder,
     titleRowIndicators,
     titleWrapper
   } = presentation
@@ -168,6 +170,11 @@ export function WorktreeCardHeader({
               iconClassName="size-3"
             />
           </RepoIdentityChip>
+        )}
+
+        {/* Why shrink-0: the title truncates first; a folder squeezed to its icon would spill over the title. */}
+        {showTitleRowFolder && (
+          <WorktreeCardFolderLabel path={worktree.path} className="max-w-24 shrink-0" />
         )}
 
         <WorktreeTitleInlineRename

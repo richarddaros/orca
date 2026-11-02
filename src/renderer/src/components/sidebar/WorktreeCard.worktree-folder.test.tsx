@@ -5,7 +5,7 @@ import type { GlobalSettings } from '../../../../shared/global-settings-types'
 import type { Repo } from '../../../../shared/repo-types'
 import type { Worktree } from '../../../../shared/worktree/types'
 
-// Fork (richarddaros/orca): default cards name the worktree folder under the title.
+// Fork (richarddaros/orca): default cards name the worktree folder under the title; the new card style names it beside the title.
 let settings: Partial<GlobalSettings> | null = null
 const WORKTREE_CARD_IMPORT_TIMEOUT_MS = 15_000
 
@@ -89,12 +89,28 @@ function makeWorktree(overrides: Partial<Worktree> = {}): Worktree {
   }
 }
 
-async function renderCard(worktree: Worktree, cardRepo: Repo = repo): Promise<string> {
+async function renderCard(
+  worktree: Worktree,
+  cardRepo: Repo = repo,
+  hideRepoBadge = true
+): Promise<string> {
   const { default: WorktreeCard } = await import('./WorktreeCard')
   return renderToStaticMarkup(
-    <WorktreeCard worktree={worktree} repo={cardRepo} isActive={false} hideRepoBadge />
+    <WorktreeCard
+      worktree={worktree}
+      repo={cardRepo}
+      isActive={false}
+      hideRepoBadge={hideRepoBadge}
+    />
   )
 }
+
+const folderLabelCount = (markup: string): number =>
+  markup.split('data-worktree-card-folder').length - 1
+
+// Why: the label's own classes decide whether it yields to the title; the rendered class list is what the user sees.
+const folderLabelClasses = (markup: string): string[] =>
+  (markup.match(/<span class="([^"]*)"[^>]*data-worktree-card-folder=""/)?.[1] ?? '').split(' ')
 
 describe('WorktreeCard worktree folder', () => {
   // The first import loads the whole card tree; warming it here keeps that cost out of every test's own timeout.
@@ -114,6 +130,8 @@ describe('WorktreeCard worktree folder', () => {
     expect(markup.indexOf('data-worktree-card-folder')).toBeLessThan(
       markup.indexOf('Detached HEAD')
     )
+    expect(folderLabelCount(markup)).toBe(1)
+    expect(folderLabelClasses(markup)).toContain('shrink-3')
   })
 
   it('names the folder ahead of the branch', async () => {
@@ -132,15 +150,48 @@ describe('WorktreeCard worktree folder', () => {
     expect(markup).toMatch(/data-worktree-card-folder=""[^]*>pinfish<\/span>/)
   })
 
-  it('keeps compact cards, the new card style and folder workspaces as they were', async () => {
+  // Why both: the new card style overrides the compact layout, so the folder shows either way.
+  it.each([false, true])(
+    'names the folder beside the title in the new card style, without a row of its own (compact %s)',
+    async (compactWorktreeCards) => {
+      settings = { compactWorktreeCards, experimentalNewWorktreeCardStyle: true }
+      const markup = await renderCard(makeWorktree({ head: '' }))
+
+      expect(markup).toContain('title="/home/me/orca/workspaces/orca/pinfish"')
+      expect(markup).toMatch(/data-worktree-card-folder=""[^]*>pinfish<\/span>/)
+      expect(markup).not.toContain('data-worktree-card-meta-row=""')
+      expect(markup.indexOf('data-worktree-card-folder')).toBeLessThan(markup.indexOf('Arrastar'))
+      expect(folderLabelCount(markup)).toBe(1)
+    }
+  )
+
+  it('keeps the new-style folder from shrinking under a long title', async () => {
+    settings = { compactWorktreeCards: false, experimentalNewWorktreeCardStyle: true }
+    const classes = folderLabelClasses(await renderCard(makeWorktree({ head: '' })))
+
+    expect(classes).toEqual(expect.arrayContaining(['shrink-0', 'max-w-24']))
+    expect(classes).not.toContain('shrink-3')
+  })
+
+  it('puts the project chip first, then the folder, then the title in the new card style', async () => {
+    settings = { compactWorktreeCards: false, experimentalNewWorktreeCardStyle: true }
+    const markup = await renderCard(makeWorktree({ head: '' }), repo, false)
+    const chip = markup.indexOf('aria-label="Project orca"')
+    const folder = markup.indexOf('data-worktree-card-folder')
+
+    expect(chip).toBeGreaterThan(-1)
+    expect(chip).toBeLessThan(folder)
+    expect(folder).toBeLessThan(markup.indexOf('Arrastar'))
+  })
+
+  it('keeps compact cards and folder workspaces as they were', async () => {
     settings = { compactWorktreeCards: true, experimentalNewWorktreeCardStyle: false }
     expect(await renderCard(makeWorktree())).not.toContain('data-worktree-card-folder')
 
-    settings = { compactWorktreeCards: false, experimentalNewWorktreeCardStyle: true }
-    expect(await renderCard(makeWorktree())).not.toContain('data-worktree-card-folder')
-
-    settings = { compactWorktreeCards: false, experimentalNewWorktreeCardStyle: false }
-    const folderMarkup = await renderCard(makeWorktree(), { ...repo, kind: 'folder' })
-    expect(folderMarkup).not.toContain('data-worktree-card-folder')
+    for (const experimentalNewWorktreeCardStyle of [false, true]) {
+      settings = { compactWorktreeCards: false, experimentalNewWorktreeCardStyle }
+      const folderMarkup = await renderCard(makeWorktree(), { ...repo, kind: 'folder' })
+      expect(folderMarkup).not.toContain('data-worktree-card-folder')
+    }
   })
 })
