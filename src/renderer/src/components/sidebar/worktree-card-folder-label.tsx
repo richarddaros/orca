@@ -1,13 +1,23 @@
 import React from 'react'
 import { Folder } from 'lucide-react'
+import { cn } from '@/lib/utils'
 import { getDirectoryName } from './worktree-card-model'
 
-/** Fork (richarddaros/orca): a git worktree card names its checkout folder under the title. */
-export function WorktreeCardFolderLabel({ path }: { path: string }): React.JSX.Element {
+/** Fork (richarddaros/orca): a git worktree card names its checkout folder, under the title or beside it in the new card style. */
+export function WorktreeCardFolderLabel({
+  path,
+  className
+}: {
+  path: string
+  className?: string
+}): React.JSX.Element {
   return (
     // Why shrink-3: flex weighs shrink by base width, so the folder gives up room faster than the branch but both truncate.
     <span
-      className="flex min-w-0 shrink-3 items-center gap-1 text-2xs leading-none text-muted-foreground"
+      className={cn(
+        'flex min-w-0 shrink-3 items-center gap-1 text-2xs leading-none text-muted-foreground',
+        className
+      )}
       title={path}
       data-worktree-card-folder=""
     >

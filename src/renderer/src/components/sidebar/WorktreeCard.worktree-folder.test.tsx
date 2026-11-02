@@ -5,7 +5,7 @@ import type { GlobalSettings } from '../../../../shared/global-settings-types'
 import type { Repo } from '../../../../shared/repo-types'
 import type { Worktree } from '../../../../shared/worktree/types'
 
-// Fork (richarddaros/orca): default cards name the worktree folder under the title.
+// Fork (richarddaros/orca): default cards name the worktree folder under the title; the new card style names it beside the title.
 let settings: Partial<GlobalSettings> | null = null
 const WORKTREE_CARD_IMPORT_TIMEOUT_MS = 15_000
 
@@ -132,15 +132,24 @@ describe('WorktreeCard worktree folder', () => {
     expect(markup).toMatch(/data-worktree-card-folder=""[^]*>pinfish<\/span>/)
   })
 
-  it('keeps compact cards, the new card style and folder workspaces as they were', async () => {
+  it('names the folder beside the title in the new card style, without a row of its own', async () => {
+    settings = { compactWorktreeCards: false, experimentalNewWorktreeCardStyle: true }
+    const markup = await renderCard(makeWorktree({ head: '' }))
+
+    expect(markup).toContain('title="/home/me/orca/workspaces/orca/pinfish"')
+    expect(markup).toMatch(/data-worktree-card-folder=""[^]*>pinfish<\/span>/)
+    expect(markup).not.toContain('data-worktree-card-meta-row=""')
+    expect(markup.indexOf('data-worktree-card-folder')).toBeLessThan(markup.indexOf('Arrastar'))
+  })
+
+  it('keeps compact cards and folder workspaces as they were', async () => {
     settings = { compactWorktreeCards: true, experimentalNewWorktreeCardStyle: false }
     expect(await renderCard(makeWorktree())).not.toContain('data-worktree-card-folder')
 
-    settings = { compactWorktreeCards: false, experimentalNewWorktreeCardStyle: true }
-    expect(await renderCard(makeWorktree())).not.toContain('data-worktree-card-folder')
-
-    settings = { compactWorktreeCards: false, experimentalNewWorktreeCardStyle: false }
-    const folderMarkup = await renderCard(makeWorktree(), { ...repo, kind: 'folder' })
-    expect(folderMarkup).not.toContain('data-worktree-card-folder')
+    for (const experimentalNewWorktreeCardStyle of [false, true]) {
+      settings = { compactWorktreeCards: false, experimentalNewWorktreeCardStyle }
+      const folderMarkup = await renderCard(makeWorktree(), { ...repo, kind: 'folder' })
+      expect(folderMarkup).not.toContain('data-worktree-card-folder')
+    }
   })
 })

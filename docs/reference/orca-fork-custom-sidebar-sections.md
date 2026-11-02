@@ -1,6 +1,6 @@
 # Seções personalizadas na sidebar (fork)
 
-<!-- updated: 2026-11-01 -->
+<!-- updated: 2026-11-02 -->
 
 Recurso só do fork `richarddaros/orca` (issue #10). Na lista **Projects** da
 sidebar, o usuário cria seções com nome (por exemplo, "MCF") e coloca nelas
@@ -90,23 +90,31 @@ essa ordem; os status continuam atualizando normalmente.
 
 ## Pasta do worktree no card
 
-No layout padrão (não compacto, sem o estilo experimental de card), todo card
-de worktree git mostra, na linha de baixo do título, um ícone de pasta e o nome
-da pasta do checkout (por exemplo, `pinfish`), antes do branch ou do "Detached
-HEAD". O caminho completo aparece ao passar o mouse. Um card que não tinha nada
-nessa linha passa a ter a linha só com a pasta. Quando falta espaço, a pasta e
-o branch truncam juntos, e a pasta encolhe mais depressa (peso 3 contra 1): ela
-perde mais em proporção, mas o branch também perde espaço.
+Todo card de worktree git mostra um ícone de pasta e o nome da pasta do
+checkout (por exemplo, `pinfish`). O caminho completo aparece ao passar o mouse.
+Onde o nome entra depende do layout do card:
+
+- **Layout padrão** (não compacto, sem o estilo experimental): na linha de baixo
+  do título, antes do branch ou do "Detached HEAD". Um card que não tinha nada
+  nessa linha passa a ter a linha só com a pasta. Quando falta espaço, a pasta e
+  o branch truncam juntos, e a pasta encolhe mais depressa (peso 3 contra 1): ela
+  perde mais em proporção, mas o branch também perde espaço.
+- **Estilo experimental de card** (`experimentalNewWorktreeCardStyle`): na linha
+  do título, depois do chip do projeto e antes do título. O estilo novo não tem a
+  linha de baixo para um card sem identidade (o upstream centraliza o título
+  nesse caso e testa isso), então a pasta não cria linha nem aumenta o card. O
+  chip não encolhe: o nome cresce até 6rem e, se for maior, corta com `…`. Quem
+  trunca primeiro é o título.
 
 Ao contrário do resto deste doc, isso não depende das seções: vale desde a
-primeira abertura, em todo card git do layout padrão, mesmo para quem nunca
+primeira abertura, em todo card git dos dois layouts, mesmo para quem nunca
 criou uma seção.
 
 - Vale para todo lugar que usa o mesmo card: a lista inteira (não só as
   seções), o quadro de status (board) e a lista de worktrees do painel de
   folder workspace.
-- Folder workspaces já mostravam a pasta e continuam iguais. O layout compacto
-  e o estilo experimental não mudam.
+- Folder workspaces já mostravam a pasta e continuam iguais nos dois layouts. O
+  layout compacto não muda e não mostra a pasta.
 - O app do celular tem cards próprios e não muda. As seções chegam a ele pelas
   respostas do host (ver "No celular do próprio computador").
 
@@ -222,7 +230,11 @@ aparelho**:
   são fixados pelo upstream mas não guardam a posição: entram no fim do Pinned.
 - O fallback de `worktree-reveal-group-keys` não conhece as seções.
 - Quanto a pasta e o branch truncam no card estreito não tem teste: depende de
-  layout real, que o teste unitário não calcula e o e2e não mede.
+  layout real, que o teste unitário não calcula e o e2e não mede. No estilo
+  experimental, o chip da pasta foi conferido por captura de fixture (larguras
+  de 288 e 440 px, temas claro e escuro, título longo e pasta longa), sem
+  fixture versionada. O primeiro desenho do chip deixava encolher até o ícone e
+  o título passava por cima; por isso ele não encolhe.
 - Recolher uma seção vale para todos os hosts.
 - Mover e subir uma seção contam o Pinned mesmo quando ele está escondido por
   não ter nenhum workspace fixado.
@@ -250,7 +262,7 @@ Módulos do fork:
 | `src/shared/custom-sidebar-sections/custom-section-order.ts`                 | Ordem dentro de uma seção: posição salva, filhos por criação, ordem de tela                 |
 | `src/renderer/src/store/slices/custom-sidebar-sections.ts`                   | Slice do store, ativação no primeiro uso, gravação e Pin/Unpin                              |
 | `src/renderer/src/components/sidebar/custom-sections/`                       | Botão, diálogos, menu ⋯ da seção, menu do card e arrasto dentro da seção                    |
-| `src/renderer/src/components/sidebar/worktree-card-folder-label.tsx`         | Ícone e nome da pasta do worktree na linha de baixo do título do card                       |
+| `src/renderer/src/components/sidebar/worktree-card-folder-label.tsx`         | Ícone e nome da pasta do worktree, sob o título (padrão) ou ao lado dele (estilo novo)      |
 | `src/renderer/src/components/sidebar/custom-sections/custom-section-drop.ts` | Arrasto entre grupos: alvo sob o ponteiro, linha de inserção, drop e saída para a lista     |
 | `src/shared/custom-sidebar-sections/mobile-section-projection.ts`            | Projeção pura: projeto de mentira por seção e troca do `repoId` das linhas                  |
 | `src/main/runtime/rpc/mobile-custom-sections.ts`                             | Lê as seções e aplica a projeção só ao celular do próprio computador                        |
@@ -273,8 +285,9 @@ Pontos de encaixe em arquivos do upstream (conferir em todo sync que mexer neles
 | `src/renderer/src/components/sidebar/worktree-list/drag/drop-commit-context.ts`, `use-drop-commit-context.ts` | Campo opcional `computeWorktreeGroupDrop` no contexto do drop                                                                            |
 | `src/renderer/src/components/sidebar/ProjectGroupNameDialog.tsx`                                              | Prop opcional `nameLabel`; sem ela o rótulo continua "Group Name"                                                                        |
 | `src/renderer/src/components/sidebar/worktree-list/rows/item-row.tsx`                                         | `inPinnedSection` também nas seções `custom-section:*`, para o chip do projeto                                                           |
-| `src/renderer/src/components/sidebar/worktree-card-presentation.tsx`                                          | `showWorktreeFolder`, que também conta como conteúdo da linha de baixo do título                                                         |
+| `src/renderer/src/components/sidebar/worktree-card-presentation.tsx`                                          | `showWorktreeFolder` (layout padrão, conta como conteúdo da linha de baixo) e `showTitleRowFolder` (estilo novo)                         |
 | `src/renderer/src/components/sidebar/worktree-card-meta-row.tsx`                                              | `WorktreeCardFolderLabel` antes do branch ou do "Detached HEAD"                                                                          |
+| `src/renderer/src/components/sidebar/worktree-card-header.tsx`                                                | `WorktreeCardFolderLabel` na linha do título do estilo novo, depois do chip do projeto                                                   |
 | `src/renderer/src/store/index.ts`, `types.ts`, `slices/store-test-helpers.ts`                                 | Registro do slice                                                                                                                        |
 | `src/renderer/src/store/slices/ui/ui-slice-hydration-actions.ts`                                              | Hidratação do campo                                                                                                                      |
 | `src/main/runtime/rpc/methods/worktree-catalog-methods.ts`, `mobile-project-sections.ts`, `worktree.ts`       | Chamam a projeção em `worktree.ps` e `mobileRelay.projectSections` e a guarda no `worktree.rm`                                           |
@@ -348,8 +361,9 @@ recebe as seções nas linhas da sidebar. O celular só as recebe pelo caminho
   ponteiro.
 - `src/renderer/src/components/sidebar/WorktreeCard.worktree-folder.test.tsx`:
   o card padrão mostra a pasta antes do branch e do "Detached HEAD" e cria a
-  linha de baixo num card que não tinha nada nela; compacto, estilo experimental e folder
-  workspace não mudam.
+  linha de baixo num card que não tinha nada nela; o estilo experimental mostra
+  a pasta antes do título, sem linha de meta; compacto e folder workspace não
+  mostram a pasta.
 - `tests/e2e/custom-sidebar-sections.spec.ts`: no Orca real, com sort Recent,
   prova primeiro que a atividade reordena a lista normal e depois que a seção
   "MCF" criada pelo botão mantém a ordem escolhida; um segundo teste fecha e
