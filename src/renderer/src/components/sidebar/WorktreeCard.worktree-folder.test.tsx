@@ -203,6 +203,35 @@ describe('WorktreeCard worktree folder', () => {
     expect(css.match(/--status-warning:\s*#[0-9a-f]{6};/gi)).toHaveLength(2)
   })
 
+  // Why: the template tests the path with len(trim(...)); a blank path must not draw an icon with an empty name.
+  it.each([false, true])(
+    'names no folder for an empty or blank path (new card style %s)',
+    async (experimentalNewWorktreeCardStyle) => {
+      settings = { compactWorktreeCards: false, experimentalNewWorktreeCardStyle }
+
+      for (const path of ['', '   ']) {
+        const markup = await renderCard(makeWorktree({ head: '', path }))
+        expect(folderLabelCount(markup)).toBe(0)
+      }
+    }
+  )
+
+  // Why: the fork parts are spread last in the registry, so an upstream element with the same name would be replaced without any error.
+  it('names only card elements that upstream does not register', async () => {
+    const { CARD_FORK_PARTS } = await import('./workspace-card/card-fork-parts')
+    const { CARD_PRIMITIVES } = await import('./workspace-card/card-primitives')
+    const { CARD_IDENTITY_PARTS } = await import('./workspace-card/card-identity-parts')
+    const { CARD_ACTIVITY_PARTS } = await import('./workspace-card/card-activity-parts')
+    const upstream = new Set([
+      ...Object.keys(CARD_PRIMITIVES),
+      ...Object.keys(CARD_IDENTITY_PARTS),
+      ...Object.keys(CARD_ACTIVITY_PARTS)
+    ])
+
+    expect(Object.keys(CARD_FORK_PARTS)).not.toHaveLength(0)
+    expect(Object.keys(CARD_FORK_PARTS).filter((name) => upstream.has(name))).toEqual([])
+  })
+
   it('puts the project chip first, then the folder, then the title in the new card style', async () => {
     settings = { compactWorktreeCards: false, experimentalNewWorktreeCardStyle: true }
     const markup = await renderCard(makeWorktree({ head: '' }), repo, false)

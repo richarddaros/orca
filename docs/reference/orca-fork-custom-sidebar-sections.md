@@ -129,11 +129,14 @@ pasta entra nele por um elemento só do fork, `WorktreeFolder`
 estilo novo (`besideTitle`, que dá o `max-w-24 shrink-0`) e na linha de baixo do
 layout padrão. As condições são as variáveis `worktreeFolder`,
 `folderUnderTitle` e `folderBesideTitle`, e `folderUnderTitle` também conta em
-`hasMetaRow`. O upstream manteve o caminho antigo (`worktree-card-parent-content.tsx`
-com `worktree-card-header.tsx` e `worktree-card-meta-row.tsx`) como referência
-do teste de paridade (`default-workspace-card.parity.test.tsx`); ele leva a
-mesma pasta, e os dois caminhos têm de ficar iguais. Se um sync trouxer a
-remoção do caminho antigo, o que sobra é o template.
+`hasMetaRow`. A regra mora no JSON. O upstream manteve o caminho antigo
+(`worktree-card-parent-content.tsx` com `worktree-card-header.tsx`,
+`worktree-card-meta-row.tsx` e `worktree-card-presentation.tsx`) só como
+referência do teste de paridade (`default-workspace-card.parity.test.tsx`), e
+nenhum código de produção o chama. Ele leva a mesma pasta, e os dois caminhos
+têm de ficar iguais: quem mudar um só não ganha erro de tipo, só o teste de
+paridade e o `WorktreeCard.worktree-folder.test.tsx` acusam. Se um sync trouxer
+a remoção do caminho antigo, o que sobra é o template.
 
 Ao contrário do resto deste doc, isso não depende das seções: vale desde a
 primeira abertura, em todo card git dos dois layouts, mesmo para quem nunca
@@ -306,33 +309,33 @@ Módulos do fork:
 
 Pontos de encaixe em arquivos do upstream (conferir em todo sync que mexer neles):
 
-| Arquivo                                                                                                       | Encaixe                                                                                                                                   |
-| ------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| `src/shared/sidebar-list/sidebar-row-plan.ts`                                                                 | `customSidebarSections` nas entradas, `createCustomSectionPlan`, `place()` em `sectionsOf`, `emitSections` em volta de `emitPinnedGroup`  |
-| `src/renderer/src/components/sidebar/worktree-list/listing/use-section-rows.ts`                               | `useCustomSidebarSectionsInput` e repasse ao `planSidebarRows`                                                                            |
-| `src/renderer/src/components/sidebar/rendered-sidebar-worktree-order.ts`                                      | Mesma entrada, para a ordem dos atalhos de teclado                                                                                        |
-| `src/renderer/src/components/sidebar/worktree-list/rows/SectionHeader.tsx`                                    | `CustomSectionHeaderMenu` e seta de recolher das seções                                                                                   |
-| `src/renderer/src/components/sidebar/sidebar-header-actions.tsx`                                              | `CustomSectionHeaderSlot` antes de "Adicionar projeto"                                                                                    |
-| `src/renderer/src/components/sidebar/WorktreeContextMenuView.tsx`                                             | `CustomSectionCardMenuItems` depois de Pin/Unpin                                                                                          |
-| `src/renderer/src/components/sidebar/worktree-list/drag/use-status-mutations.ts`                              | `reorderCustomSectionByDrag` no início do `reorderWorktrees`                                                                              |
-| `src/renderer/src/components/sidebar/worktree-list/drag/pointer-flush.ts`                                     | `previewCustomSectionDrop` logo depois da linhagem                                                                                        |
-| `src/renderer/src/components/sidebar/worktree-list/drag/pointer-commit.ts`                                    | `commitCustomSectionDrop` logo depois da linhagem                                                                                         |
-| `src/renderer/src/components/sidebar/worktree-list/drag/use-session.ts`                                       | `computeWorktreeGroupDrop` (qualquer grupo); `computeWorktreeStatusDrop` delega para ele                                                  |
-| `src/renderer/src/components/sidebar/worktree-list/drag/drop-commit-context.ts`, `use-drop-commit-context.ts` | Campo opcional `computeWorktreeGroupDrop` no contexto do drop                                                                             |
-| `src/renderer/src/components/sidebar/ProjectGroupNameDialog.tsx`                                              | Prop opcional `nameLabel`; sem ela o rótulo continua "Group Name"                                                                         |
-| `src/renderer/src/components/sidebar/worktree-list/rows/item-row.tsx`                                         | `inPinnedSection` também nas seções `custom-section:*`, para o chip do projeto                                                            |
-| `src/renderer/src/components/sidebar/worktree-card-presentation.tsx`                                          | `showWorktreeFolder` (layout padrão, conta como conteúdo da linha de baixo) e `showTitleRowFolder` (estilo novo)                          |
-| `src/renderer/src/components/sidebar/workspace-card/default-workspace-card.json`                              | Variáveis `worktreeFolder`, `folderUnderTitle`, `folderBesideTitle`, `folderUnderTitle` em `hasMetaRow` e dois elementos `WorktreeFolder` |
-| `src/renderer/src/components/sidebar/workspace-card/card-element-registry.ts`                                 | `...CARD_FORK_PARTS` no registro de elementos                                                                                             |
-| `src/renderer/src/components/sidebar/worktree-card-meta-row.tsx`                                              | Caminho antigo (referência de paridade): `WorktreeCardFolderLabel` antes do branch ou do "Detached HEAD"                                  |
-| `src/renderer/src/components/sidebar/worktree-card-header.tsx`                                                | Caminho antigo (referência de paridade): `WorktreeCardFolderLabel` na linha do título do estilo novo, depois do chip do projeto           |
-| `src/renderer/src/store/index.ts`, `types.ts`, `slices/store-test-helpers.ts`                                 | Registro do slice                                                                                                                         |
-| `src/renderer/src/store/slices/ui/ui-slice-hydration-actions.ts`                                              | Hidratação do campo                                                                                                                       |
-| `src/main/runtime/rpc/methods/worktree-catalog-methods.ts`, `mobile-project-sections.ts`, `worktree.ts`       | Chamam a projeção em `worktree.ps` e `mobileRelay.projectSections` e a guarda no `worktree.rm`                                            |
-| `src/shared/persisted-ui-state-types.ts`, `pairing-local-ui-fields.ts`                                        | Campo persistido e bloqueio para pareados                                                                                                 |
-| `src/main/runtime/rpc/methods/ui-state-schema-parity-checks.ts`                                               | Campo fora do schema do RPC                                                                                                               |
-| `src/shared/wsl-move/wsl-move-ui-dispositions.ts`                                                             | Classificação do campo na migração para o WSL                                                                                             |
-| `src/renderer/src/i18n/locales/en.json`, `pt.json`                                                            | Bloco `customSections`                                                                                                                    |
+| Arquivo                                                                                                       | Encaixe                                                                                                                                                   |
+| ------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/shared/sidebar-list/sidebar-row-plan.ts`                                                                 | `customSidebarSections` nas entradas, `createCustomSectionPlan`, `place()` em `sectionsOf`, `emitSections` em volta de `emitPinnedGroup`                  |
+| `src/renderer/src/components/sidebar/worktree-list/listing/use-section-rows.ts`                               | `useCustomSidebarSectionsInput` e repasse ao `planSidebarRows`                                                                                            |
+| `src/renderer/src/components/sidebar/rendered-sidebar-worktree-order.ts`                                      | Mesma entrada, para a ordem dos atalhos de teclado                                                                                                        |
+| `src/renderer/src/components/sidebar/worktree-list/rows/SectionHeader.tsx`                                    | `CustomSectionHeaderMenu` e seta de recolher das seções                                                                                                   |
+| `src/renderer/src/components/sidebar/sidebar-header-actions.tsx`                                              | `CustomSectionHeaderSlot` antes de "Adicionar projeto"                                                                                                    |
+| `src/renderer/src/components/sidebar/WorktreeContextMenuView.tsx`                                             | `CustomSectionCardMenuItems` depois de Pin/Unpin                                                                                                          |
+| `src/renderer/src/components/sidebar/worktree-list/drag/use-status-mutations.ts`                              | `reorderCustomSectionByDrag` no início do `reorderWorktrees`                                                                                              |
+| `src/renderer/src/components/sidebar/worktree-list/drag/pointer-flush.ts`                                     | `previewCustomSectionDrop` logo depois da linhagem                                                                                                        |
+| `src/renderer/src/components/sidebar/worktree-list/drag/pointer-commit.ts`                                    | `commitCustomSectionDrop` logo depois da linhagem                                                                                                         |
+| `src/renderer/src/components/sidebar/worktree-list/drag/use-session.ts`                                       | `computeWorktreeGroupDrop` (qualquer grupo); `computeWorktreeStatusDrop` delega para ele                                                                  |
+| `src/renderer/src/components/sidebar/worktree-list/drag/drop-commit-context.ts`, `use-drop-commit-context.ts` | Campo opcional `computeWorktreeGroupDrop` no contexto do drop                                                                                             |
+| `src/renderer/src/components/sidebar/ProjectGroupNameDialog.tsx`                                              | Prop opcional `nameLabel`; sem ela o rótulo continua "Group Name"                                                                                         |
+| `src/renderer/src/components/sidebar/worktree-list/rows/item-row.tsx`                                         | `inPinnedSection` também nas seções `custom-section:*`, para o chip do projeto                                                                            |
+| `src/renderer/src/components/sidebar/worktree-card-presentation.tsx`                                          | Caminho antigo (referência de paridade): `showWorktreeFolder` (layout padrão, conta como conteúdo da linha de baixo) e `showTitleRowFolder` (estilo novo) |
+| `src/renderer/src/components/sidebar/workspace-card/default-workspace-card.json`                              | Variáveis `worktreeFolder`, `folderUnderTitle`, `folderBesideTitle`, `folderUnderTitle` em `hasMetaRow` e dois elementos `WorktreeFolder`                 |
+| `src/renderer/src/components/sidebar/workspace-card/card-element-registry.ts`                                 | `...CARD_FORK_PARTS` no registro de elementos                                                                                                             |
+| `src/renderer/src/components/sidebar/worktree-card-meta-row.tsx`                                              | Caminho antigo (referência de paridade): `WorktreeCardFolderLabel` antes do branch ou do "Detached HEAD"                                                  |
+| `src/renderer/src/components/sidebar/worktree-card-header.tsx`                                                | Caminho antigo (referência de paridade): `WorktreeCardFolderLabel` na linha do título do estilo novo, depois do chip do projeto                           |
+| `src/renderer/src/store/index.ts`, `types.ts`, `slices/store-test-helpers.ts`                                 | Registro do slice                                                                                                                                         |
+| `src/renderer/src/store/slices/ui/ui-slice-hydration-actions.ts`                                              | Hidratação do campo                                                                                                                                       |
+| `src/main/runtime/rpc/methods/worktree-catalog-methods.ts`, `mobile-project-sections.ts`, `worktree.ts`       | Chamam a projeção em `worktree.ps` e `mobileRelay.projectSections` e a guarda no `worktree.rm`                                                            |
+| `src/shared/persisted-ui-state-types.ts`, `pairing-local-ui-fields.ts`                                        | Campo persistido e bloqueio para pareados                                                                                                                 |
+| `src/main/runtime/rpc/methods/ui-state-schema-parity-checks.ts`                                               | Campo fora do schema do RPC                                                                                                                               |
+| `src/shared/wsl-move/wsl-move-ui-dispositions.ts`                                                             | Classificação do campo na migração para o WSL                                                                                                             |
+| `src/renderer/src/i18n/locales/en.json`, `pt.json`                                                            | Bloco `customSections`                                                                                                                                    |
 
 O modo `ORCA_SIDEBAR_INPUTS=main` (chave escura, barrada no empacotamento) não
 recebe as seções nas linhas da sidebar. O celular só as recebe pelo caminho
