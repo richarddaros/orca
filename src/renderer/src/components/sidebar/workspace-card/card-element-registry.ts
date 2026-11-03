@@ -1,5 +1,6 @@
 import type { WorktreeCardController } from '../use-worktree-card-controller'
 import { CARD_ACTIVITY_PARTS } from './card-activity-parts'
+import { CARD_FORK_PARTS } from './card-fork-parts'
 import { CARD_IDENTITY_PARTS } from './card-identity-parts'
 import { CARD_PRIMITIVES } from './card-primitives'
 import type { CardElementRegistry } from './card-template-compiler'
@@ -8,5 +9,6 @@ import type { CardElementRegistry } from './card-template-compiler'
 export const WORKSPACE_CARD_ELEMENTS: CardElementRegistry<WorktreeCardController> = {
   ...CARD_PRIMITIVES,
   ...CARD_IDENTITY_PARTS,
-  ...CARD_ACTIVITY_PARTS
+  ...CARD_ACTIVITY_PARTS,
+  ...CARD_FORK_PARTS
 }
