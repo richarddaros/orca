@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { renderToStaticMarkup } from 'react-dom/server'
 import type { ReactNode } from 'react'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -112,6 +114,10 @@ const folderLabelCount = (markup: string): number =>
 const folderLabelClasses = (markup: string): string[] =>
   (markup.match(/<span class="([^"]*)"[^>]*data-worktree-card-folder=""/)?.[1] ?? '').split(' ')
 
+// Why: the icon is the only yellow part of the label; the name stays muted so it does not compete with the title.
+const folderIconClasses = (markup: string): string[] =>
+  (markup.match(/data-worktree-card-folder=""[^>]*><svg[^>]*class="([^"]*)"/)?.[1] ?? '').split(' ')
+
 describe('WorktreeCard worktree folder', () => {
   // The first import loads the whole card tree; warming it here keeps that cost out of every test's own timeout.
   beforeAll(async () => {
@@ -171,6 +177,30 @@ describe('WorktreeCard worktree folder', () => {
 
     expect(classes).toEqual(expect.arrayContaining(['shrink-0', 'max-w-24']))
     expect(classes).not.toContain('shrink-3')
+  })
+
+  it.each([false, true])(
+    'fills the folder icon yellow and leaves the name muted (new card style %s)',
+    async (experimentalNewWorktreeCardStyle) => {
+      settings = { compactWorktreeCards: false, experimentalNewWorktreeCardStyle }
+      const markup = await renderCard(makeWorktree({ head: '' }))
+
+      expect(folderIconClasses(markup)).toEqual(
+        expect.arrayContaining(['fill-status-warning', 'text-status-warning'])
+      )
+      expect(folderLabelClasses(markup)).toContain('text-muted-foreground')
+      // Why exact: any colour class on the name span would turn the whole label yellow.
+      expect(markup).toContain('<span class="min-w-0 truncate font-mono">pinfish</span>')
+    }
+  )
+
+  // Why: a class string alone passes even if the token leaves the theme, and the icon would render empty with no error.
+  it('keeps the yellow folder tied to a theme token that main.css still declares', () => {
+    const css = readFileSync(resolve('src/renderer/src/assets/main.css'), 'utf8')
+
+    expect(css).toMatch(/--color-status-warning:\s*var\(--status-warning\);/)
+    // Why two: the light and the dark theme each declare their own yellow.
+    expect(css.match(/--status-warning:\s*#[0-9a-f]{6};/gi)).toHaveLength(2)
   })
 
   it('puts the project chip first, then the folder, then the title in the new card style', async () => {

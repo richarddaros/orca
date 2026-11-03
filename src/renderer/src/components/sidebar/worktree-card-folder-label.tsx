@@ -21,7 +21,9 @@ export function WorktreeCardFolderLabel({
       title={path}
       data-worktree-card-folder=""
     >
-      <Folder className="size-3 shrink-0" aria-hidden />
+      {/* Why filled yellow: the owner spots the checkout name by its yellow folder among grey card text; the name stays muted.
+          Why the status token: it already holds the theme pair (darker yellow on white, brighter on dark) and the design gate bans raw palette colors. */}
+      <Folder className="size-3 shrink-0 fill-status-warning text-status-warning" aria-hidden />
       <span className="min-w-0 truncate font-mono">{getDirectoryName(path)}</span>
     </span>
   )
