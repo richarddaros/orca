@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { getWorktreeHostIdentity } from '../../../../shared/worktree/host-qualified-identity'
 import { PINNED_GROUP_KEY } from '../../../../shared/sidebar-list/sections/group-keys'
 import { getCustomSectionGroupKey } from '../../../../shared/custom-sidebar-sections/custom-sidebar-sections-state'
-import type { PersistedUIState } from '../../../../shared/persisted-ui-state-types'
+import type { PersistedUIState } from '../../../../shared/orca-profiles/persisted-ui-state-types'
 import { createTestStore } from '../testing/app-store-test-fixture'
 import { makeWorktree } from './worktrees/worktree.test-fixture'
 

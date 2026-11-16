@@ -11,7 +11,7 @@ import {
   psRow,
   sectionsState
 } from '../../../src/shared/custom-sidebar-sections/mobile-section-projection.test-fixture'
-import type { MobileProjectSectionsResult } from '../../../src/shared/mobile-project-sections-contract'
+import type { MobileProjectSectionsResult } from '../../../src/shared/sidebar-list/catalog/mobile-project-sections-contract'
 import { ProjectSectionCatalogSchema } from '../../../src/shared/sidebar-list/catalog/project-section-catalog-schema'
 import type {
   RuntimeWorktreePsResult,

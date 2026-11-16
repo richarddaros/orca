@@ -7,7 +7,7 @@ import {
   projectCustomSectionsOntoCatalog,
   projectCustomSectionsOntoPs
 } from '../../../shared/custom-sidebar-sections/mobile-section-projection'
-import type { MobileProjectSectionsResult } from '../../../shared/mobile-project-sections-contract'
+import type { MobileProjectSectionsResult } from '../../../shared/sidebar-list/catalog/mobile-project-sections-contract'
 import type { RuntimeWorktreePsResult } from '../../../shared/worktree/catalog/runtime-worktree-contracts'
 import type { RpcContext } from './core'
 import { isHostOwnPhone } from './callers/host-own-phone'
