@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { getWorktreeHostIdentity } from '../../../../shared/worktree/host-qualified-identity'
 import { PINNED_GROUP_KEY } from '../../../../shared/sidebar-list/sections/group-keys'
 import { getCustomSectionGroupKey } from '../../../../shared/custom-sidebar-sections/custom-sidebar-sections-state'
+import type { PersistedUIState } from '../../../../shared/persisted-ui-state-types'
 import { createTestStore } from '../testing/app-store-test-fixture'
 import { makeWorktree } from './worktrees/worktree.test-fixture'
 
@@ -32,6 +33,19 @@ const sectionIds = (store: ReturnType<typeof createTestStore>) =>
   store.getState().customSidebarSections?.sections.map((section) => section.id)
 
 describe('custom sidebar sections slice', () => {
+  // Why: the hydration hook sits in the store composition, not in the UI slice, so only a hydrate through the store proves it still runs.
+  it('hydrates the sections when the persisted UI hydrates', () => {
+    const store = createTestStore()
+    const ui: Partial<PersistedUIState> = {
+      customSidebarSections: { version: 1, sections: [{ id: 'old', name: 'Old', members: [] }] }
+    }
+
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: this hydration reads only the sections field; every other persisted field keeps its default.
+    store.getState().hydratePersistedUI(ui as PersistedUIState, 'startup')
+
+    expect(sectionIds(store)).toEqual(['pinned', 'old'])
+  })
+
   it('stays inactive and writes nothing while sections were never used', () => {
     const { store } = hydratedStore()
     store.getState().reconcileCustomSidebarSections([{ key: pinnedWorkspace.key, isPinned: true }])

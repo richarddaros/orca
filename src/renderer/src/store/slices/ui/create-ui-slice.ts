@@ -14,7 +14,6 @@ import { createUiSurfaceActions } from './ui-slice-surface-actions'
 import { createUiPersistenceActions } from './ui-slice-persistence-actions'
 import { createUiHydrationActions } from './ui-slice-hydration-actions'
 import { createUiUpdateActions } from './ui-slice-update-actions'
-import { withCustomSectionsHydration } from '../custom-sidebar-sections'
 
 export const createUISlice: StateCreator<AppState, [], [], UISlice> = (set, get) =>
   ({
@@ -29,6 +28,6 @@ export const createUISlice: StateCreator<AppState, [], [], UISlice> = (set, get)
     ...createUiPreferenceActions(set, get),
     ...createUiSurfaceActions(set, get),
     ...createUiPersistenceActions(set, get),
-    ...withCustomSectionsHydration(createUiHydrationActions(set, get), get),
+    ...createUiHydrationActions(set, get),
     ...createUiUpdateActions(set, get)
   }) as UISlice

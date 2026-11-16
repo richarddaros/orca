@@ -59,7 +59,10 @@ import { createStructuredChatSleptAtSlice } from './slices/agent-status/structur
 import { createStructuredChatCompanionWritesSlice } from './slices/agent-status/structured-chat-companion-writes'
 import { createEphemeralVmLifecycleSlice } from './slices/ephemeral-vm/ephemeral-vm-lifecycle'
 import { createWorkspaceAttentionSlice } from './slices/workspace-attention/workspace-attention-slice'
-import { createCustomSidebarSectionsSlice } from './slices/custom-sidebar-sections'
+import {
+  createCustomSidebarSectionsSlice,
+  withCustomSectionsHydration
+} from './slices/custom-sidebar-sections'
 import { e2eConfig } from '@/app-shell/startup/e2e-config'
 import type { createWebRuntimeSessionTerminal } from '@/runtime/hosted-terminals/creation/web-runtime-terminal-creation'
 import {
@@ -114,7 +117,7 @@ export const useAppStore = create<AppState>()(
               ...createWorktreeSlice(...a),
               ...createTerminalSlice(...a),
               ...createTabsSlice(...a),
-              ...createUISlice(...a),
+              ...withCustomSectionsHydration(createUISlice(...a), a[1]),
               ...createSettingsSlice(...a),
               ...createKeybindingsSlice(...a),
               ...createGitHubSlice(...a),

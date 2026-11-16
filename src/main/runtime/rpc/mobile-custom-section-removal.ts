@@ -96,24 +96,25 @@ export async function refuseSkippedArchiveHookForSectionMember(
  * Runs the archive-hook guard ahead of `worktree.rm` and leaves every other method alone. Wrapping here keeps
  * `methods/workspaces/worktree.ts`, which sits at its line budget, identical to upstream.
  */
-export function withSectionRemovalGuard<T extends readonly { readonly name: string }[]>(
-  methods: T
-): T {
-  const guarded = methods.map((method) => {
-    if (method.name !== 'worktree.rm' || !('handler' in method)) {
+export function withSectionRemovalGuard<T extends { readonly name: string }>(
+  methods: readonly T[]
+): T[] {
+  return methods.map((method): T => {
+    if (
+      method.name !== 'worktree.rm' ||
+      !('handler' in method) ||
+      typeof method.handler !== 'function'
+    ) {
       return method
     }
-    const handler = method.handler as (
-      params: RemovalParams,
-      context: RpcContext
-    ) => Promise<unknown>
+    const handler = method.handler
     return {
       ...method,
-      handler: async (params: RemovalParams, context: RpcContext) => {
+      handler: async (params: RemovalParams, context: RpcContext): Promise<unknown> => {
         await refuseSkippedArchiveHookForSectionMember(params, context)
-        return handler(params, context)
+        const result: unknown = await Reflect.apply(handler, method, [params, context])
+        return result
       }
     }
   })
-  return guarded as unknown as T
 }

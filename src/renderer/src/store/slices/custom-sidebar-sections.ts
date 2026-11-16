@@ -220,21 +220,15 @@ export const createCustomSidebarSectionsSlice: StateCreator<
   }
 }
 
-/** Runs the sections hydration beside the UI slice's own, so the upstream file keeps no fork lines (it sits at its line budget). */
-export function withCustomSectionsHydration(
-  actions: Partial<UISlice>,
-  get: () => AppState
-): Partial<UISlice> {
-  const hydrate = actions.hydratePersistedUI
-  if (!hydrate) {
-    return actions
-  }
+/** Runs the sections hydration beside the UI slice's own, so the upstream UI slice files carry no fork lines (two sit at their line budget). */
+export function withCustomSectionsHydration(ui: UISlice, get: () => AppState): UISlice {
+  const hydrate = ui.hydratePersistedUI
   return {
-    ...actions,
-    hydratePersistedUI: (ui, source = 'sync') => {
+    ...ui,
+    hydratePersistedUI: (persisted, source = 'sync') => {
       // Why optional: stores built from a subset of slices hydrate UI without the fork slice.
-      get().hydrateCustomSidebarSections?.(ui.customSidebarSections, source)
-      hydrate(ui, source)
+      get().hydrateCustomSidebarSections?.(persisted.customSidebarSections, source)
+      hydrate(persisted, source)
     }
   }
 }
