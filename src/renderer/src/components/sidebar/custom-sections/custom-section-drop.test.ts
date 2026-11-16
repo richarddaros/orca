@@ -35,14 +35,14 @@ const board = vi.hoisted(() => {
 })
 
 vi.mock('@/store', () => ({ useAppStore: { getState: () => store } }))
-vi.mock('../workspace-kanban-sidebar-drop', () => ({
+vi.mock('../workspace-board/drag/workspace-kanban-sidebar-drop', () => ({
   clearWorkspaceKanbanSidebarDropTargetVisual: vi.fn(),
   getWorkspaceKanbanSidebarDropGroups: () => [],
   getWorkspaceKanbanSidebarDropTarget: () => ({ status: null, isPinDrop: false }),
   isWorkspaceKanbanSidebarDropPointInBoard: () => false,
   resolveWorkspaceKanbanSidebarFullLaneDropIndex: () => 0
 }))
-vi.mock('../workspace-kanban-card-pointer-drag-dom', () => ({
+vi.mock('../workspace-board/drag/workspace-kanban-card-pointer-drag-dom', () => ({
   resolveWorkspaceKanbanCardDropCommitTarget: () => board.commitTarget
 }))
 // `a` was dragged from the ssh host (a twin exists locally); `p` is pinned; `folder:f1` is a folder workspace;

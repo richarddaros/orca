@@ -8,7 +8,10 @@ import {
 import { ARCHIVE_HOOK_FAILED_REMOVAL_CODE } from '../../../shared/worktree/removal/archive-hook-removal-gate'
 import type { OrcaRuntimeService } from '../orca-runtime'
 import { RpcDispatcher } from './dispatcher'
-import { refuseSkippedArchiveHookForSectionMember } from './mobile-custom-section-removal'
+import {
+  refuseSkippedArchiveHookForSectionMember,
+  withSectionRemovalGuard
+} from './mobile-custom-section-removal'
 import { WORKTREE_METHODS } from './methods/workspaces/worktree'
 
 const ARCHIVE_SCRIPT = { hooks: { scripts: { archive: 'scripts/archive.sh' } } }
@@ -208,7 +211,10 @@ describe('worktree.rm', () => {
     return {
       getWorktreePs,
       removeManagedWorktree,
-      dispatcher: new RpcDispatcher({ runtime: typed, methods: WORKTREE_METHODS })
+      dispatcher: new RpcDispatcher({
+        runtime: typed,
+        methods: withSectionRemovalGuard(WORKTREE_METHODS)
+      })
     }
   }
 
