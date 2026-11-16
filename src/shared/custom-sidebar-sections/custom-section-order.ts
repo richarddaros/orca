@@ -1,7 +1,7 @@
 /** Fork-owned (richarddaros/orca): row order inside Pinned and user sections, independent of the sort. */
 import { getWorktreeHostIdentity } from '../worktree/host-qualified-identity'
 import type { Worktree } from '../worktree/types'
-import { compareCodePoints } from '../sidebar-list/text-order'
+import { compareCodePoints } from '../sidebar-list/sorting/text-order'
 
 const identityOf = getWorktreeHostIdentity
 

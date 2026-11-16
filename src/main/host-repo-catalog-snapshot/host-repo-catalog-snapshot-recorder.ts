@@ -3,12 +3,12 @@
 import {
   hostRepoCatalogSnapshotFromRepoList,
   type HostRepoCatalogSnapshot
-} from '../../shared/host-repo-catalog-snapshot'
-import type { RuntimeRpcResponse } from '../../shared/runtime-rpc-envelope'
+} from '../../shared/execution-host/host-repo-catalog-snapshot'
+import type { RuntimeRpcResponse } from '../../shared/remote-runtime/rpc/runtime-rpc-envelope'
 import {
   isWslHostRuntimeEnvironment,
   type OrcadDeploymentLink
-} from '../../shared/runtime-environments'
+} from '../../shared/remote-runtime/host-catalog/runtime-environments'
 
 export type HostRepoCatalogSnapshotStore = {
   getHostRepoCatalogSnapshots(): Record<string, HostRepoCatalogSnapshot>

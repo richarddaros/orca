@@ -1,15 +1,15 @@
-import './unused-default-rpc-methods.test-fixture'
+import './dispatch/testing/unused-default-rpc-methods.test-fixture'
 import { describe, expect, it, vi } from 'vitest'
 import {
   psResult,
   psRow,
   sectionsState
 } from '../../../shared/custom-sidebar-sections/mobile-section-projection.test-fixture'
-import { ARCHIVE_HOOK_FAILED_REMOVAL_CODE } from '../../../shared/worktree/archive-hook-removal-gate'
+import { ARCHIVE_HOOK_FAILED_REMOVAL_CODE } from '../../../shared/worktree/removal/archive-hook-removal-gate'
 import type { OrcaRuntimeService } from '../orca-runtime'
 import { RpcDispatcher } from './dispatcher'
 import { refuseSkippedArchiveHookForSectionMember } from './mobile-custom-section-removal'
-import { WORKTREE_METHODS } from './methods/worktree'
+import { WORKTREE_METHODS } from './methods/workspaces/worktree'
 
 const ARCHIVE_SCRIPT = { hooks: { scripts: { archive: 'scripts/archive.sh' } } }
 const NO_SCRIPT = { hooks: { scripts: {} } }

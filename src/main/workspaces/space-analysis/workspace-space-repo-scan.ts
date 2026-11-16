@@ -1,15 +1,15 @@
 import type { Store } from '../../persistence/loading-store/store'
 import { platform } from 'node:process'
-import { isFolderRepo } from '../../../shared/repo-kind'
-import type { Repo } from '../../../shared/repo-types'
+import { isFolderRepo } from '../../../shared/repository/repo-kind'
+import type { Repo } from '../../../shared/repository/repo-types'
 import type { GitWorktreeInfo, Worktree } from '../../../shared/worktree/types'
 import type {
   WorkspaceSpaceRepoSummary,
   WorkspaceSpaceScanProgress,
   WorkspaceSpaceScanStatus,
   WorkspaceSpaceWorktree
-} from '../../../shared/workspace-space-types'
-import { mapWithConcurrency } from '../../../shared/map-with-concurrency'
+} from '../../../shared/workspace-disk-space/workspace-space-types'
+import { mapWithConcurrency } from '../../../shared/concurrency/map-with-concurrency'
 import { getRepoExecutionHostId, LOCAL_EXECUTION_HOST_ID } from '../../../shared/execution-host'
 import { readWorktreeMetaForHost } from '../../persistence/host-qualified-worktree-meta'
 import { getRepoOwnedWorktreeMeta } from '../catalog/worktree-metadata-ownership'

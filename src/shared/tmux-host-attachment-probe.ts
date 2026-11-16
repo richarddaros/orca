@@ -1,19 +1,19 @@
 import { stat } from 'node:fs/promises'
-import { readAgentProcess } from './agent-process-presence-probe'
+import { readAgentProcess } from './agent-status/process/agent-process-presence-probe'
 import { runProcess } from '@orca/process-host'
-import { runPsInProcess } from './libproc-process-table'
+import { runPsInProcess } from './process-observation/darwin/libproc-process-table'
 import {
   PS_ARGS,
   parseStrictProcessTableRows,
   type ProcessTableRow
-} from './process-table-snapshot'
+} from './process-observation/tables/process-table-snapshot'
 import {
   isTmuxPaneShownElsewhere,
   parseTmuxAttachedClients,
   resolveTmuxClientAttachment,
   type TmuxAttachedClient
 } from './tmux-client-attachment'
-import type { TmuxPaneBridge } from './hook-process-root-evidence'
+import type { TmuxPaneBridge } from './agent-hook-listener/presence/hook-process-root-evidence'
 
 const MAX_PROCESS_ROWS = 256
 

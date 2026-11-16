@@ -1,4 +1,4 @@
-import { isPairedWebClientWindow } from '@/lib/desktop-window-chrome'
+import { isPairedWebClientWindow } from '@/app-shell/chrome/desktop-window-chrome'
 import { useAppStore } from '@/store'
 import {
   createInitialCustomSidebarSections,

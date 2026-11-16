@@ -1,8 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { getWorktreeHostIdentity } from '../../../../shared/worktree/host-qualified-identity'
-import { PINNED_GROUP_KEY } from '../../../../shared/sidebar-list/group-keys'
+import { PINNED_GROUP_KEY } from '../../../../shared/sidebar-list/sections/group-keys'
 import { getCustomSectionGroupKey } from '../../../../shared/custom-sidebar-sections/custom-sidebar-sections-state'
-import { createTestStore, makeWorktree } from './store-test-helpers'
+import { createTestStore } from '../testing/app-store-test-fixture'
+import { makeWorktree } from './worktrees/worktree.test-fixture'
 
 const uiSet = vi.fn<(updates: Record<string, unknown>) => Promise<void>>()
 const uiGet = vi.fn<() => Promise<Record<string, unknown>>>()

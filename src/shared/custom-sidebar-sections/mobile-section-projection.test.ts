@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { MobileProjectSectionsResult } from '../mobile-project-sections-contract'
-import type { RuntimeWorktreePsResult } from '../runtime-worktree-contracts'
-import { ProjectSectionCatalogSchema } from '../project-section-catalog-schema'
+import type { RuntimeWorktreePsResult } from '../worktree/catalog/runtime-worktree-contracts'
+import { ProjectSectionCatalogSchema } from '../sidebar-list/catalog/project-section-catalog-schema'
 import {
   hasNamedCustomSections,
   mobileSectionRepoId,

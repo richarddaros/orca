@@ -8,11 +8,11 @@ import {
   projectCustomSectionsOntoPs
 } from '../../../shared/custom-sidebar-sections/mobile-section-projection'
 import { LOCAL_EXECUTION_HOST_ID } from '../../../shared/execution-host'
-import type { RuntimeWorktreePsResult } from '../../../shared/runtime-worktree-contracts'
-import { WorktreeArchiveHookFailedError } from '../../../shared/worktree/archive-hook-removal-gate'
-import { getExplicitWorktreeIdSelector } from '../runtime-worktree-selection'
+import type { RuntimeWorktreePsResult } from '../../../shared/worktree/catalog/runtime-worktree-contracts'
+import { WorktreeArchiveHookFailedError } from '../../../shared/worktree/removal/archive-hook-removal-gate'
+import { getExplicitWorktreeIdSelector } from '../workspaces/catalog/runtime-worktree-selection'
 import { storedSectionsFor, type SectionsContext } from './mobile-custom-sections'
-import { supportsWorktreeVisibilitySourceDefaults } from './worktree-visibility-client-capability'
+import { supportsWorktreeVisibilitySourceDefaults } from './workspace-client-views/worktree-visibility-client-capability'
 import type { RpcContext } from './core'
 
 // Why: a card is filed by the same rows the phone lists, and the default page of 200 could leave it out.
@@ -90,4 +90,30 @@ export async function refuseSkippedArchiveHookForSectionMember(
     outcome: 'unverifiable',
     output: FILED_UNDER_SECTION_NOTE
   })
+}
+
+/**
+ * Runs the archive-hook guard ahead of `worktree.rm` and leaves every other method alone. Wrapping here keeps
+ * `methods/workspaces/worktree.ts`, which sits at its line budget, identical to upstream.
+ */
+export function withSectionRemovalGuard<T extends readonly { readonly name: string }[]>(
+  methods: T
+): T {
+  const guarded = methods.map((method) => {
+    if (method.name !== 'worktree.rm' || !('handler' in method)) {
+      return method
+    }
+    const handler = method.handler as (
+      params: RemovalParams,
+      context: RpcContext
+    ) => Promise<unknown>
+    return {
+      ...method,
+      handler: async (params: RemovalParams, context: RpcContext) => {
+        await refuseSkippedArchiveHookForSectionMember(params, context)
+        return handler(params, context)
+      }
+    }
+  })
+  return guarded as unknown as T
 }

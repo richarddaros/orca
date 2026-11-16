@@ -5,23 +5,23 @@ import type { AgentJournalResolution } from '../journal/agent-session-journal-ty
 import {
   readAgentCliInstallationProblem,
   type AgentCliInstallationProblem
-} from '../../agent-cli-installation-problem'
+} from '../../agent-launch/catalog/agent-cli-installation-problem'
 import {
   readCodexInstallationProblem,
   type CodexInstallationProblem
-} from '../../codex-cli-installation'
+} from '../../agent-launch/startup/codex-cli-installation'
 import {
   readAgentSessionArgumentProblem,
   type AgentSessionArgumentProblem
 } from '../agent-session-argument-problem'
-import type { AgentSessionRewindReason } from '../lifecycle/agent-session-rewind'
+import type { AgentSessionRewindReason } from '../lifecycle/rewind/agent-session-rewind-reasons'
 import { readAgentSessionLegacyRefusalFacts } from './agent-session-legacy-refusal-fields'
 import {
   readAgentSessionExpiredAttachments,
   type AgentSessionExpiredAttachment
 } from './agent-session-expired-attachments'
-import type { TuiAgent } from '../../tui-agent'
-import { TUI_AGENT_DISPLAY_NAMES } from '../../tui-agent-display-names'
+import type { TuiAgent } from '../../agent-launch/catalog/tui-agent'
+import { TUI_AGENT_DISPLAY_NAMES } from '../../agent-launch/catalog/tui-agent-display-names'
 import type {
   AgentSessionOwnerVerdict,
   AgentSessionWireRefusalCode

@@ -1,0 +1,92 @@
+import { defineMethod } from '../../core'
+import { resolveWorktreeCatalogSnapshot } from '../../workspace-client-views/worktree-catalog-snapshot'
+import { coarsenWorktreePsActivity } from '../../workspace-client-views/worktree-ps-coarse-activity'
+import { projectWorktreePsCustomSections } from '../../mobile-custom-sections'
+import { markWorktreePsOtherClientRows } from '../../workspace-client-views/worktree-ps-other-client-marks'
+import { supportsWorktreeVisibilitySourceDefaults } from '../../workspace-client-views/worktree-visibility-client-capability'
+import {
+  projectWorktreeListRemovals,
+  projectWorktreePsRemovals
+} from '../../workspace-client-views/worktree-removal-marker-projection'
+import { snapshotPendingWorktreeRemovals } from '../../../../workspaces/removal/worktree-removal-listing'
+import {
+  WorktreeDetectedListParams,
+  WorktreeListParams,
+  WorktreePsParams
+} from '../../../../../shared/rpc-contract/workspaces/worktree-params'
+
+export const WORKTREE_CATALOG_METHODS = [
+  defineMethod({
+    name: 'worktree.ps',
+    permission: 'workspace',
+    params: WorktreePsParams,
+    handler: async (params, context) => {
+      const pendingAtScan = snapshotPendingWorktreeRemovals()
+      // Why: sections file rows before the snapshot id or row delta is computed, so a poll compares what the phone sees.
+      const result = projectWorktreePsCustomSections(
+        markWorktreePsOtherClientRows(
+          projectWorktreePsRemovals(
+            await context.runtime.getWorktreePs(
+              params.limit,
+              supportsWorktreeVisibilitySourceDefaults(
+                context,
+                params.supportsWorktreeVisibilitySourceDefaults
+              ),
+              params.includeAgentWait === true
+            ),
+            context,
+            pendingAtScan
+          ),
+          context
+        ),
+        context
+      )
+      // Why: legacy callers keep exact activity; only snapshot pollers are coarsened.
+      if (params.afterSnapshotId === undefined && params.acceptRowDelta !== true) {
+        return result
+      }
+      // Why: pollers get activity at poll-friendly granularity so the id survives terminal output.
+      return resolveWorktreeCatalogSnapshot(coarsenWorktreePsActivity(result), params)
+    }
+  }),
+  defineMethod({
+    name: 'worktree.list',
+    permission: 'workspace',
+    params: WorktreeListParams,
+    handler: async (params, context) => {
+      const pendingAtScan = snapshotPendingWorktreeRemovals()
+      return projectWorktreeListRemovals(
+        await context.runtime.listManagedWorktrees(
+          params.repo,
+          params.limit,
+          supportsWorktreeVisibilitySourceDefaults(context)
+        ),
+        context,
+        pendingAtScan
+      )
+    }
+  }),
+  defineMethod({
+    name: 'worktree.listRetiredNames',
+    permission: 'workspace',
+    params: WorktreeDetectedListParams,
+    handler: async (params, { runtime }) => runtime.listRetiredWorktreeNames(params.repo)
+  }),
+  defineMethod({
+    name: 'worktree.detectedList',
+    permission: 'workspace',
+    params: WorktreeDetectedListParams,
+    handler: async (params, context) => {
+      const pendingAtScan = snapshotPendingWorktreeRemovals()
+      return projectWorktreeListRemovals(
+        await context.runtime.listDetectedManagedWorktrees(
+          params.repo,
+          undefined,
+          supportsWorktreeVisibilitySourceDefaults(context)
+        ),
+        context,
+        pendingAtScan
+      )
+    }
+  })
+]

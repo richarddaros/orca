@@ -11,7 +11,7 @@ import {
 import { translate } from '@/i18n/i18n'
 import { useAppStore } from '@/store'
 import { PINNED_CUSTOM_SECTION_ID } from '../../../../../shared/custom-sidebar-sections/custom-sidebar-sections-state'
-import { ProjectGroupNameDialog } from '../ProjectGroupNameDialog'
+import { ProjectGroupNameDialog } from '../worktree-list/rows/ProjectGroupNameDialog'
 import { getCustomSectionDisplayName } from './custom-section-display-name'
 
 /** Fork (richarddaros/orca): the create, rename and delete dialogs for user sidebar sections. */

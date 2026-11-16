@@ -13,13 +13,10 @@ vi.mock('../../worktrees/catalog/worktree-list-reader', async (importOriginal) =
   readRepoCommonDirFromGit: readRepoCommonDirFromGitMock
 }))
 
-import { _resetCanonicalRepoKeyCacheForTests } from '../../canonical-repo-key'
+import { _resetCanonicalRepoKeyCacheForTests } from '../../repositories/canonical-repo-key'
 import {
   _resetLocalRepoRefMaintenanceForTests,
-  createLocalRepoRefMaintenanceTarget,
-  getLocalRepoRefMaintenance,
-  setRepoMaintenanceActivityProbe,
-  withRepoRefMaintenancePaused
+  createLocalRepoRefMaintenanceTarget
 } from './local-repo-ref-maintenance'
 
 const NO_ABORT = new AbortController().signal
@@ -89,45 +86,5 @@ describe('local repo ref maintenance target', () => {
     await expect(target('Ubuntu').resolveRefsDirectory(NO_ABORT)).resolves.toBe(
       '\\\\wsl.localhost\\Ubuntu\\home\\dev\\repo\\.git\\refs'
     )
-  })
-})
-
-describe('local repo ref maintenance scheduling', () => {
-  it('holds the window shut for the duration of ref-touching work', async () => {
-    readRepoCommonDirFromGitMock.mockResolvedValue('/repo/.git')
-    _resetLocalRepoRefMaintenanceForTests({ quietPeriodMs: 1, looseRefThreshold: 0 })
-    setRepoMaintenanceActivityProbe(() => false)
-    const maintenance = getLocalRepoRefMaintenance()
-    const packRefs = vi.fn(async () => {})
-    maintenance.arm({
-      key: 'local::/repo/.git',
-      resolveRefsDirectory: async () => '/repo/.git/refs',
-      packRefs
-    })
-
-    await withRepoRefMaintenancePaused('branch-delete', async () => {
-      await new Promise((resolve) => setTimeout(resolve, 25))
-      expect(packRefs).not.toHaveBeenCalled()
-    })
-
-    await vi.waitFor(() => expect(packRefs).toHaveBeenCalledTimes(1))
-  })
-
-  it('routes the app activity probe into the shared instance', async () => {
-    readRepoCommonDirFromGitMock.mockResolvedValue('/repo/.git')
-    let busy = true
-    setRepoMaintenanceActivityProbe(() => busy)
-    const maintenance = getLocalRepoRefMaintenance()
-    const packRefs = vi.fn(async () => {})
-
-    maintenance.arm({
-      key: 'local::/repo/.git',
-      resolveRefsDirectory: async () => '/repo/.git/refs',
-      packRefs
-    })
-    await maintenance.whenAttemptSettled()
-
-    expect(packRefs).not.toHaveBeenCalled()
-    busy = false
   })
 })

@@ -1,6 +1,6 @@
 /** Fork-owned (richarddaros/orca): user-named sidebar sections with a frozen, user-defined order. */
 import type { PersistedUIState } from '../persisted-ui-state-types'
-import { PINNED_GROUP_KEY } from '../sidebar-list/group-keys'
+import { PINNED_GROUP_KEY } from '../sidebar-list/sections/group-keys'
 
 // Why: sections name this desktop's workspaces; paired clients keep their own (empty) view.
 export const FORK_LOCAL_UI_FIELDS = [

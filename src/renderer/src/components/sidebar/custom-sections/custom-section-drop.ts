@@ -7,12 +7,12 @@ import {
   getCustomSectionIdFromGroupKey,
   getCustomSectionIdOfGroupKey
 } from '../../../../../shared/custom-sidebar-sections/custom-sidebar-sections-state'
-import { PINNED_GROUP_KEY } from '../../../../../shared/sidebar-list/group-keys'
+import { PINNED_GROUP_KEY } from '../../../../../shared/sidebar-list/sections/group-keys'
 import { getWorktreeHostIdentity } from '../../../../../shared/worktree/host-qualified-identity'
-import { parseWorkspaceKey } from '../../../../../shared/workspace-scope'
+import { parseWorkspaceKey } from '../../../../../shared/workspace/identity/workspace-scope'
 import type { WorkspaceStatus } from '../../../../../shared/worktree/types'
-import { clearWorkspaceKanbanSidebarDropTargetVisual } from '../workspace-kanban-sidebar-drop'
-import type { WorktreeSidebarDropPreview } from '../worktree-sidebar-drop-preview'
+import { clearWorkspaceKanbanSidebarDropTargetVisual } from '../workspace-board/drag/workspace-kanban-sidebar-drop'
+import type { WorktreeSidebarDropPreview } from '../worktree-list/drag/worktree-sidebar-drop-preview'
 import type { WorktreeDropCommitContext } from '../worktree-list/drag/drop-commit-context'
 import { dropWriteRows } from '../worktree-list/drag/dragged-worktree-copies'
 import {

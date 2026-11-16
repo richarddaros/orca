@@ -1,15 +1,26 @@
-import { getFolderWorkspaceHostIdentity } from '../folder-workspace-worktree'
-import { getTopVisibleLineageRoots } from '../worktree-lineage-placement'
-import type { WorktreeOccurrencePlan } from '../worktree-occurrence-plan'
+import { getFolderWorkspaceHostIdentity } from '../folder-workspaces/folder-workspace-worktree'
+import { getTopVisibleLineageRoots } from '../sidebar-list/lineage/worktree-lineage-placement'
+import {
+  buildWorktreeOccurrencePlan,
+  type WorktreeOccurrencePlan,
+  type WorktreeOccurrenceSection
+} from '../sidebar-list/lineage/worktree-occurrence-plan'
 import { getWorktreeHostIdentity } from '../worktree/host-qualified-identity'
 import type { Worktree } from '../worktree/types'
-import type { RenderableFolderWorkspace } from '../sidebar-list/folder-workspace-lanes'
-import { PINNED_GROUP_KEY } from '../sidebar-list/group-keys'
-import { getLaneHostWorktreeCounts, getLaneHostWorktreeIds } from '../sidebar-list/host-labels'
-import { appendWorktreeRows, buildFolderWorkspaceRow } from '../sidebar-list/row-builders'
+import {
+  getRenderableFolderWorkspaces,
+  type RenderableFolderWorkspace
+} from '../sidebar-list/folders/folder-workspace-lanes'
+import { isFolderLaneSectionKey } from '../sidebar-list/folders/folder-workspace-occurrences'
+import { PINNED_GROUP_KEY } from '../sidebar-list/sections/group-keys'
+import {
+  getLaneHostWorktreeCounts,
+  getLaneHostWorktreeIds
+} from '../sidebar-list/hosts/host-labels'
+import { appendWorktreeRows, buildFolderWorkspaceRow } from '../sidebar-list/sections/row-builders'
 import type { Row } from '../sidebar-list/row-types'
 import type { SidebarRowPlanInputs } from '../sidebar-list/sidebar-row-plan'
-import type { WorktreeGroupEntry } from '../sidebar-list/worktree-group-entry'
+import type { WorktreeGroupEntry } from '../sidebar-list/sections/worktree-group-entry'
 import {
   PINNED_CUSTOM_SECTION_ID,
   getCustomSectionGroupKey,
@@ -32,17 +43,21 @@ export type CustomOccurrenceSection = {
   revealPath: { key: string }
 }
 
+type OccurrenceSection = WorktreeOccurrenceSection<Worktree> & { group: WorktreeGroupEntry }
+type BuildArgs<Section extends OccurrenceSection> = Parameters<
+  typeof buildWorktreeOccurrencePlan<Worktree, Section>
+>[0]
+type BuiltPlan<Section extends OccurrenceSection> = WorktreeOccurrencePlan<Worktree> & {
+  sections: readonly (Section | CustomOccurrenceSection)[]
+}
+
 export type CustomSectionPlan = {
-  withoutFolderMembers: (
-    folderWorkspaces: readonly RenderableFolderWorkspace[]
-  ) => RenderableFolderWorkspace[]
-  place: (placement: LineagePlacement) => LineagePlacement & {
-    customSections: CustomOccurrenceSection[]
-  }
-  /** Pinned and user sections render outside the grouped lanes. */
+  /** Folder workspaces filed under a user section leave their lane. */
+  renderableFolders: typeof getRenderableFolderWorkspaces
+  /** The upstream occurrence plan, with user sections placed around it and their rows kept for `emitSections`. */
+  build: <Section extends OccurrenceSection>(args: BuildArgs<Section>) => BuiltPlan<Section>
+  /** Pinned, user sections and folder lanes render outside the ordered project groups. */
   isPlacedOutsideGroups: (key: string) => boolean
-  /** Rows come from the finished occurrence plan, which only exists after `place` ran. */
-  attach: (occurrencePlan: WorktreeOccurrencePlan<Worktree>) => void
   emitSections: (
     position: 'before' | 'after',
     result: Row[],
@@ -52,10 +67,9 @@ export type CustomSectionPlan = {
 }
 
 const NO_CUSTOM_SECTIONS: CustomSectionPlan = {
-  withoutFolderMembers: (folderWorkspaces) => [...folderWorkspaces],
-  place: (placement) => ({ ...placement, customSections: [] }),
-  isPlacedOutsideGroups: (key) => key === PINNED_GROUP_KEY,
-  attach: () => {},
+  renderableFolders: getRenderableFolderWorkspaces,
+  build: (args) => buildWorktreeOccurrencePlan(args),
+  isPlacedOutsideGroups: (key) => key === PINNED_GROUP_KEY || isFolderLaneSectionKey(key),
   emitSections: () => {}
 }
 
@@ -69,8 +83,7 @@ export function createCustomSectionPlan(
   inputs: Pick<
     SidebarRowPlanInputs,
     'customSidebarSections' | 'worktrees' | 'repoMap' | 'repoOfWorktree' | 'defaultHostId'
-  >,
-  childrenByParentIdentity: ReadonlyMap<string, readonly Worktree[]>
+  >
 ): CustomSectionPlan {
   const state = inputs.customSidebarSections
   if (!state) {
@@ -92,7 +105,9 @@ export function createCustomSectionPlan(
   const folderMembers = new Map<string, RenderableFolderWorkspace>()
   const itemsBySectionId = new Map<string, Worktree[]>()
 
-  const assignCustomSections = (): Map<string, string> => {
+  const assignCustomSections = (
+    childrenByParentIdentity: ReadonlyMap<string, readonly Worktree[]>
+  ): Map<string, string> => {
     const visible = new Map(rows.map((row) => [identityOf(row), row]))
     const isExplicitRoot = (row: Worktree): boolean =>
       row.isPinned === true || sectionIdByMember.has(identityOf(row))
@@ -208,58 +223,76 @@ export function createCustomSectionPlan(
     }
   }
 
-  return {
-    withoutFolderMembers: (folderWorkspaces) =>
-      folderWorkspaces.filter((pair) => {
-        const key = getFolderWorkspaceHostIdentity(pair.folderWorkspace)
-        if (!sectionIdByMember.has(key)) {
-          return true
-        }
-        folderMembers.set(key, pair)
-        return false
-      }),
-    place: (placement) => {
-      const assigned = assignCustomSections()
-      const pinnedRows = placement.pinned.filter((row) => !assigned.has(identityOf(row)))
-      const pinned = inDisplayOrder(
-        orderByRank(
-          pinnedRows.filter((row) => row.isPinned === true),
-          pinnedSection?.members ?? []
-        ),
-        pinnedRows.filter((row) => row.isPinned !== true).sort(compareFollowers),
-        childrenByParentIdentity
-      )
-      for (const section of customSections) {
-        itemsBySectionId.set(section.id, sectionItems(section, assigned))
+  const withoutFolderMembers = (
+    folderWorkspaces: readonly RenderableFolderWorkspace[]
+  ): RenderableFolderWorkspace[] =>
+    folderWorkspaces.filter((pair) => {
+      const key = getFolderWorkspaceHostIdentity(pair.folderWorkspace)
+      if (!sectionIdByMember.has(key)) {
+        return true
       }
-      const natural =
+      folderMembers.set(key, pair)
+      return false
+    })
+
+  const place = (
+    placement: LineagePlacement,
+    childrenByParentIdentity: ReadonlyMap<string, readonly Worktree[]>
+  ) => {
+    const assigned = assignCustomSections(childrenByParentIdentity)
+    const pinnedRows = placement.pinned.filter((row) => !assigned.has(identityOf(row)))
+    const pinned = inDisplayOrder(
+      orderByRank(
+        pinnedRows.filter((row) => row.isPinned === true),
+        pinnedSection?.members ?? []
+      ),
+      pinnedRows.filter((row) => row.isPinned !== true).sort(compareFollowers),
+      childrenByParentIdentity
+    )
+    for (const section of customSections) {
+      itemsBySectionId.set(section.id, sectionItems(section, assigned))
+    }
+    const natural =
+      assigned.size === 0
+        ? placement.natural
+        : placement.natural.filter((row) => !assigned.has(identityOf(row)))
+    return {
+      pinned,
+      natural,
+      displayRootByIdentity:
         assigned.size === 0
-          ? placement.natural
-          : placement.natural.filter((row) => !assigned.has(identityOf(row)))
-      return {
-        pinned,
-        natural,
-        displayRootByIdentity:
-          assigned.size === 0
-            ? placement.displayRootByIdentity
-            : getTopVisibleLineageRoots(natural, childrenByParentIdentity, identityOf),
-        customSections: customSections.map((section) => {
-          const key = getCustomSectionGroupKey(section.id)
-          const items = itemsBySectionId.get(section.id) ?? []
-          return {
-            key,
-            group: { label: section.name, items, repoIds: new Set<string>() },
-            placement: 'natural',
-            items,
-            revealPath: { key }
-          }
-        })
-      }
-    },
-    isPlacedOutsideGroups: (key) => key === PINNED_GROUP_KEY || sectionKeys.has(key),
-    attach: (plan) => {
+          ? placement.displayRootByIdentity
+          : getTopVisibleLineageRoots(natural, childrenByParentIdentity, identityOf),
+      customSections: customSections.map((section): CustomOccurrenceSection => {
+        const key = getCustomSectionGroupKey(section.id)
+        const items = itemsBySectionId.get(section.id) ?? []
+        return {
+          key,
+          group: { label: section.name, items, repoIds: new Set<string>() },
+          placement: 'natural',
+          items,
+          revealPath: { key }
+        }
+      })
+    }
+  }
+
+  return {
+    renderableFolders: (folderWorkspaces, projectGroups) =>
+      withoutFolderMembers(getRenderableFolderWorkspaces(folderWorkspaces, projectGroups)),
+    build: (args) => {
+      const plan = buildWorktreeOccurrencePlan({
+        ...args,
+        sectionsOf: (placement) => {
+          const placed = place(placement, args.childrenByParentIdentity)
+          return [...args.sectionsOf(placed), ...placed.customSections]
+        }
+      })
       occurrencePlan = plan
+      return plan
     },
+    isPlacedOutsideGroups: (key) =>
+      key === PINNED_GROUP_KEY || sectionKeys.has(key) || isFolderLaneSectionKey(key),
     emitSections: (position, result, collapsedGroups, hostContextLabelByWorktreeIdentity) => {
       const pinnedIndex = state.sections.findIndex(
         (section) => section.id === PINNED_CUSTOM_SECTION_ID

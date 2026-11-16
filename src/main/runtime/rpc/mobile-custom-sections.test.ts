@@ -1,4 +1,4 @@
-import './unused-default-rpc-methods.test-fixture'
+import './dispatch/testing/unused-default-rpc-methods.test-fixture'
 import { describe, expect, it, vi } from 'vitest'
 import { mobileSectionRepoId } from '../../../shared/custom-sidebar-sections/mobile-section-projection'
 import {
@@ -8,10 +8,10 @@ import {
   sectionsState
 } from '../../../shared/custom-sidebar-sections/mobile-section-projection.test-fixture'
 import type { OrcaRuntimeService } from '../orca-runtime'
-import { publishMobileProjectSections } from '../mobile-project-sections-snapshot'
+import { publishMobileProjectSections } from '../sidebar-inputs/catalog/mobile-project-sections-snapshot'
 import { RpcDispatcher } from './dispatcher'
-import { MOBILE_PROJECT_SECTIONS_METHODS } from './methods/mobile-project-sections'
-import { WORKTREE_CATALOG_METHODS } from './methods/worktree-catalog-methods'
+import { MOBILE_PROJECT_SECTIONS_METHODS } from './methods/mobile-delivery/mobile-project-sections'
+import { WORKTREE_CATALOG_METHODS } from './methods/workspaces/worktree-catalog-methods'
 import {
   projectProjectSectionsCustomSections,
   projectWorktreePsCustomSections

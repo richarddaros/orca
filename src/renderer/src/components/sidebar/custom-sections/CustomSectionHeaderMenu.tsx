@@ -8,14 +8,14 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu'
-import { isPairedWebClientWindow } from '@/lib/desktop-window-chrome'
+import { isPairedWebClientWindow } from '@/app-shell/chrome/desktop-window-chrome'
 import { translate } from '@/i18n/i18n'
 import { useAppStore } from '@/store'
 import {
   PINNED_CUSTOM_SECTION_ID,
   getCustomSectionIdFromGroupKey
 } from '../../../../../shared/custom-sidebar-sections/custom-sidebar-sections-state'
-import { PINNED_GROUP_KEY } from '../../../../../shared/sidebar-list/group-keys'
+import { PINNED_GROUP_KEY } from '../../../../../shared/sidebar-list/sections/group-keys'
 import {
   handleRepoHeaderActionPointerDown,
   stopRepoHeaderKeyboardToggle,

@@ -19,7 +19,7 @@ import {
   getWorktreeHostIdentity
 } from '../../../../../shared/worktree/host-qualified-identity'
 import type { Worktree } from '../../../../../shared/worktree/types'
-import { getVisibleWorktreeShortcutTargets } from '../visible-worktrees'
+import { getVisibleWorktreeShortcutTargets } from '../worktree-list/listing/visible-worktrees'
 import { getCustomSectionDisplayName } from './custom-section-display-name'
 import { useShownCustomSidebarSections } from './use-shown-custom-sidebar-sections'
 

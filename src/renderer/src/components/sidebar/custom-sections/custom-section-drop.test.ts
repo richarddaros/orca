@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { CustomSidebarSectionsState } from '../../../../../shared/custom-sidebar-sections/custom-sidebar-sections-state'
 import type { WorktreeDropCommitContext } from '../worktree-list/drag/drop-commit-context'
 import { composeWorktreeHostIdentity } from '../../../../../shared/worktree/host-qualified-identity'
-import { getWorktreeDragUnitGroups } from '../worktree-drag-units'
+import { getWorktreeDragUnitGroups } from '../worktree-list/drag/worktree-drag-units'
 import { commitWorktreePointerDrop } from '../worktree-list/drag/pointer-commit'
 import {
   WORKTREE_ROW_DRAG_INITIAL_STATE,
@@ -148,6 +148,7 @@ function makeDrag(
     currentY: 180,
     worktreeId: draggedIds[0]!,
     draggedIds,
+    pickedCopies: draggedCopies,
     draggedCopies,
     worktreeKey: draggedKeys[0]!,
     reorderDraggedIds: draggedIds,
@@ -406,7 +407,11 @@ describe('custom section drop', () => {
   it('still nests a card dropped in the middle of a section card (lineage wins)', () => {
     pointAt(sectionCard)
     const ctx = makeCtx({
-      getEligibleLineageDropTarget: () => ({ status: null, isPinDrop: false, lineageParentId: 'b' })
+      getEligibleLineageDropTarget: () => ({
+        status: null,
+        isPinDrop: false,
+        lineageParentIdentity: 'b'
+      })
     })
     commitWorktreePointerDrop({
       event: new PointerEvent('pointerup', { clientX: 50, clientY: 180 }),
@@ -415,7 +420,10 @@ describe('custom section drop', () => {
       onWorkspaceBoardDragPreviewCommit: vi.fn(),
       onDropWorktreesOnWorkspaceBoard: vi.fn()
     })
-    expect(ctx.commitWorktreeLineageParentDrop).toHaveBeenCalledWith(['a'], 'b')
+    expect(ctx.commitWorktreeLineageParentDrop).toHaveBeenCalledWith(
+      [{ id: 'a', hostId: 'ssh:box' }],
+      'b'
+    )
     expect(store.dropWorkspacesIntoCustomSection).not.toHaveBeenCalled()
   })
 

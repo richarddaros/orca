@@ -1,5 +1,5 @@
 import type { StateCreator } from 'zustand'
-import { isPairedWebClientWindow } from '@/lib/desktop-window-chrome'
+import { isPairedWebClientWindow } from '@/app-shell/chrome/desktop-window-chrome'
 import type { Worktree } from '../../../../shared/worktree/types'
 import {
   PINNED_CUSTOM_SECTION_ID,
@@ -17,6 +17,7 @@ import {
   type CustomSidebarSectionsState
 } from '../../../../shared/custom-sidebar-sections/custom-sidebar-sections-state'
 import type { AppState } from '../types'
+import type { UISlice } from './ui/ui-slice-contract'
 
 /** A workspace as section actions see it; worktrees also carry what Pin/Unpin needs. */
 export type CustomSectionWorkspace = {
@@ -216,5 +217,24 @@ export const createCustomSidebarSectionsSlice: StateCreator<
       }
     },
     setCustomSectionDialog: (dialog) => set({ customSectionDialog: dialog })
+  }
+}
+
+/** Runs the sections hydration beside the UI slice's own, so the upstream file keeps no fork lines (it sits at its line budget). */
+export function withCustomSectionsHydration(
+  actions: Partial<UISlice>,
+  get: () => AppState
+): Partial<UISlice> {
+  const hydrate = actions.hydratePersistedUI
+  if (!hydrate) {
+    return actions
+  }
+  return {
+    ...actions,
+    hydratePersistedUI: (ui, source = 'sync') => {
+      // Why optional: stores built from a subset of slices hydrate UI without the fork slice.
+      get().hydrateCustomSidebarSections?.(ui.customSidebarSections, source)
+      hydrate(ui, source)
+    }
   }
 }

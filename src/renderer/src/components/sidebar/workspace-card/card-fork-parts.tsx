@@ -1,6 +1,6 @@
-import type { WorktreeCardController } from '../use-worktree-card-controller'
+import type { WorktreeCardController } from './controller/use-worktree-card-controller'
 import { WorktreeCardFolderLabel } from '../worktree-card-folder-label'
-import { cardElement } from './card-template-compiler'
+import { cardElement } from './template/card-template-compiler'
 
 type Card = WorktreeCardController
 const part = cardElement<Card>

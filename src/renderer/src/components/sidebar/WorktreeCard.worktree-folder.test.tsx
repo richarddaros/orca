@@ -4,7 +4,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import type { ReactNode } from 'react'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { GlobalSettings } from '../../../../shared/global-settings-types'
-import type { Repo } from '../../../../shared/repo-types'
+import type { Repo } from '../../../../shared/repository/repo-types'
 import type { Worktree } from '../../../../shared/worktree/types'
 
 // Fork (richarddaros/orca): default cards name the worktree folder under the title; the new card style names it beside the title.
@@ -96,7 +96,7 @@ async function renderCard(
   cardRepo: Repo = repo,
   hideRepoBadge = true
 ): Promise<string> {
-  const { default: WorktreeCard } = await import('./WorktreeCard')
+  const { default: WorktreeCard } = await import('./workspace-card/surface/WorktreeCard')
   return renderToStaticMarkup(
     <WorktreeCard
       worktree={worktree}
@@ -121,7 +121,7 @@ const folderIconClasses = (markup: string): string[] =>
 describe('WorktreeCard worktree folder', () => {
   // The first import loads the whole card tree; warming it here keeps that cost out of every test's own timeout.
   beforeAll(async () => {
-    await import('./WorktreeCard')
+    await import('./workspace-card/surface/WorktreeCard')
   }, WORKTREE_CARD_IMPORT_TIMEOUT_MS)
 
   beforeEach(() => {
@@ -219,9 +219,9 @@ describe('WorktreeCard worktree folder', () => {
   // Why: the fork parts are spread last in the registry, so an upstream element with the same name would be replaced without any error.
   it('names only card elements that upstream does not register', async () => {
     const { CARD_FORK_PARTS } = await import('./workspace-card/card-fork-parts')
-    const { CARD_PRIMITIVES } = await import('./workspace-card/card-primitives')
-    const { CARD_IDENTITY_PARTS } = await import('./workspace-card/card-identity-parts')
-    const { CARD_ACTIVITY_PARTS } = await import('./workspace-card/card-activity-parts')
+    const { CARD_PRIMITIVES } = await import('./workspace-card/template/card-primitives')
+    const { CARD_IDENTITY_PARTS } = await import('./workspace-card/template/card-identity-parts')
+    const { CARD_ACTIVITY_PARTS } = await import('./workspace-card/template/card-activity-parts')
     const upstream = new Set([
       ...Object.keys(CARD_PRIMITIVES),
       ...Object.keys(CARD_IDENTITY_PARTS),
