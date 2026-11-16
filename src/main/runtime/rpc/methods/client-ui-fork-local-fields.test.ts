@@ -1,7 +1,7 @@
 import '../dispatch/testing/unused-default-rpc-methods.test-fixture'
 import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
-import { getDefaultUIState } from '../../../../shared/constants'
+import { getDefaultUIState } from '../../../../shared/orca-profiles/constants'
 import { FORK_LOCAL_UI_FIELDS } from '../../../../shared/custom-sidebar-sections/custom-sidebar-sections-state'
 import type { OrcaRuntimeService } from '../../orca-runtime'
 import { RpcDispatcher } from '../dispatcher'

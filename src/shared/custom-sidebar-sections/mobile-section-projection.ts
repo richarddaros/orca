@@ -10,7 +10,7 @@ import {
   normalizeCustomSidebarSections,
   type CustomSidebarSection
 } from '../custom-sidebar-sections/custom-sidebar-sections-state'
-import { LOCAL_EXECUTION_HOST_ID } from '../execution-host'
+import { LOCAL_EXECUTION_HOST_ID } from '../execution-host/execution-host'
 import type {
   MobileProjectSectionRepo,
   MobileProjectSectionsResult
