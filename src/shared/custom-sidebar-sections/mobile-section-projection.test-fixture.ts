@@ -6,7 +6,7 @@ import type {
 import type {
   RuntimeWorktreePsResult,
   RuntimeWorktreePsSummary
-} from '../runtime-worktree-contracts'
+} from '../worktree/catalog/runtime-worktree-contracts'
 import type { CustomSidebarSectionsState } from './custom-sidebar-sections-state'
 
 export function psRow(

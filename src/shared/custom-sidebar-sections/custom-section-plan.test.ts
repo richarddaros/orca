@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import type { Repo } from '../repo-types'
+import type { Repo } from '../repository/repo-types'
 import type { WorktreeLineage } from '../worktree/lineage-types'
 import type { Worktree } from '../worktree/types'
 import { getWorktreeHostIdentity } from '../worktree/host-qualified-identity'
 import { planSidebarRows } from '../sidebar-list/sidebar-row-plan'
 import type { Row, WorktreeGroupBy } from '../sidebar-list/row-types'
-import { cloneDefaultWorkspaceStatuses } from '../workspace-statuses'
+import { cloneDefaultWorkspaceStatuses } from '../workspace/status/workspace-statuses'
 import {
   PINNED_CUSTOM_SECTION_ID,
   createInitialCustomSidebarSections,
@@ -71,6 +71,7 @@ function rowsFor(
 ): Row[] {
   return planSidebarRows({
     groupBy: options.groupBy ?? 'repo',
+    sortBy: 'name',
     worktrees,
     repoMap: new Map([[repo.id, repo]]),
     prGroupOf: () => 'in-progress',

@@ -95,7 +95,7 @@ describe('fork sync flows against real git', () => {
   describe.skipIf(process.platform === 'win32')('sync end to end with fake gh and pnpm', () => {
     const TOKEN = 'fixture-sentinel-not-a-token'
 
-    function forkNetwork(box) {
+    function forkNetwork(box, forkOnlyFiles = {}) {
       const origin = join(box.dir, 'origin.git')
       gitOk(box, box.dir, 'init', '-q', '--bare', origin)
       const upstream = join(box.dir, 'upstream')
@@ -120,7 +120,11 @@ describe('fork sync flows against real git', () => {
       )
       const local = join(box.dir, 'local')
       gitOk(box, box.dir, 'clone', '-q', '-b', 'feat/agent-hub-poc', origin, local)
-      writeTree(local, { 'src/shared.ts': `${lines.replace('one', 'one fork')}\n` })
+      writeTree(local, {
+        'src/shared.ts': `${lines.replace('one', 'one fork')}\n`,
+        ...forkOnlyFiles
+      })
+      gitOk(box, local, 'add', '-A')
       gitOk(box, local, 'commit', '-q', '-am', 'fork change')
       gitOk(box, local, 'push', '-q', 'origin', 'feat/agent-hub-poc')
       writeTree(upstream, { 'src/other.ts': 'export {}\n' })
@@ -206,6 +210,7 @@ else process.exit(3)
         ['install', '--frozen-lockfile'],
         ['install', '--frozen-lockfile'],
         ['tc'],
+        ['check:ratchets'],
         ['test:agent-hub'],
         ['test:fork-sync']
       ])
@@ -233,6 +238,25 @@ else process.exit(3)
       ])
       expect(net.pnpmCalls().flat().join(' ')).not.toContain(TOKEN)
       expect(output.join('\n')).not.toContain(TOKEN)
+    })
+
+    // Why: the root vitest config never collects mobile/, so only this call keeps a moved import there from passing unseen.
+    it('runs the fork phone tests through the phone app’s own vitest config', () => {
+      const box = sandbox()
+      const net = forkNetwork(box, { 'mobile/src/phone.test.ts': 'export {}\n' })
+      captureOutput()
+
+      main(['sync', '--merge'], net.local)
+
+      expect(net.pnpmCalls()).toContainEqual([
+        'exec',
+        'vitest',
+        'run',
+        '--config',
+        'mobile/vitest.config.ts',
+        'src/phone.test.ts',
+        '--maxWorkers=2'
+      ])
     })
 
     it('keeps the upstream list after a fix commit and never force-pushes the line', () => {

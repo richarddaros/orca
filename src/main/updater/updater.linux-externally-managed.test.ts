@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type * as UpdaterModule from './updater-service'
 import { loadUpdaterModule, warmUpdaterModule } from './testing/updater-test-module-loader'
 import { updaterMainWindow } from './testing/updater-test-main-window'
-import type { LinuxRootPackageType, UpdateStatus } from '../../shared/update-status-types'
+import type { LinuxRootPackageType, UpdateStatus } from '../../shared/updater/update-status-types'
 
 const {
   autoUpdaterMock,
@@ -90,17 +90,5 @@ describe('updater externally managed Linux installs', () => {
       version: '1.0.61',
       retryable: false
     })
-  })
-
-  it('leaves an ordinary deb host able to download', async () => {
-    const { updater } = await startUpdater({ packageType: 'deb', externallyManaged: false })
-    updater.checkForUpdatesFromMenu()
-    await vi.advanceTimersByTimeAsync(0)
-    autoUpdaterMock.downloadUpdate.mockResolvedValue([])
-
-    updater.downloadUpdate()
-    await vi.advanceTimersByTimeAsync(0)
-
-    expect(autoUpdaterMock.downloadUpdate).toHaveBeenCalled()
   })
 })

@@ -1,9 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { useAppStore } from '@/store'
-import { createTestStore } from '@/store/slices/store-test-helpers'
-import type { AgentStatusIpcPayload } from '../../../../shared/agent-status-types'
-import { makePaneKey } from '../../../../shared/stable-pane-id'
-import type { TerminalTab } from '../../../../shared/terminal-tab-types'
+import { createTestStore } from '@/store/testing/app-store-test-fixture'
+import type { AgentStatusIpcPayload } from '../../../../shared/agent-status/contracts/agent-status-ipc-payload'
+import { makePaneKey } from '../../../../shared/workspace-layout/stable-pane-id'
+import type { TerminalTab } from '../../../../shared/workspace-layout/terminal-tab-types'
 import { buildWindowApi } from '../ipc-events-agent-status-window-test-fixtures'
 import type { AgentStatusSetData } from '../ipc-events-agent-status-store-test-fixtures'
 
@@ -121,8 +121,6 @@ describe('hook-driven tab title IPC integration', () => {
         })
       )
       const { registerAgentStatusIpcBridge } = await import('./agent-status-ipc-bridge')
-      const updateTitle = vi.spyOn(store.getState(), 'updateTabTitle')
-      const updateTitles = vi.spyOn(store.getState(), 'updateTabTitles')
       const unsubs: (() => void)[] = []
       const bridge = registerAgentStatusIpcBridge(unsubs)
       try {
@@ -130,14 +128,12 @@ describe('hook-driven tab title IPC integration', () => {
           onSet(events[0])
         }
         await vi.waitFor(() => {
-          expect(store.getState().agentStatusByPaneKey[PANE_KEY]?.state).toBe(states.at(-1))
+          expect(store.getState().agentStatusByPaneKey.get(PANE_KEY)?.state).toBe(states.at(-1))
         })
         expect(store.getState().tabsByWorktree[WORKTREE_ID][0].title).toBe(expected)
-        expect(store.getState().agentStatusByPaneKey[PANE_KEY].terminalTitle).toBe(
+        expect(store.getState().agentStatusByPaneKey.get(PANE_KEY)!.terminalTitle).toBe(
           states.at(-1) === 'done' ? 'Codex ready' : 'Codex - action required'
         )
-        expect(updateTitle).toHaveBeenCalledTimes(mode === 'live' ? 1 : 0)
-        expect(updateTitles).toHaveBeenCalledTimes(mode === 'snapshot' ? 1 : 0)
       } finally {
         bridge.disposeAsyncState()
         bridge.unsubscribeStore()

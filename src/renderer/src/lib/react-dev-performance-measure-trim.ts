@@ -18,6 +18,8 @@ export function installReactDevPerformanceMeasureTrim(options: {
     return () => {}
   }
 
+  // Why a fixed interval and not installWindowVisibilityInterval: a hidden dev window still renders and keeps adding
+  // measures, so pausing it would bring the leak back. config/recurring-timer-baseline.txt allows this one interval.
   const timer = setInterval(
     () => clearMeasures.call(perf),
     options.intervalMs ?? REACT_DEV_MEASURE_TRIM_INTERVAL_MS

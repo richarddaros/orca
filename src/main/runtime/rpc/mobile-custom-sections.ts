@@ -8,9 +8,9 @@ import {
   projectCustomSectionsOntoPs
 } from '../../../shared/custom-sidebar-sections/mobile-section-projection'
 import type { MobileProjectSectionsResult } from '../../../shared/mobile-project-sections-contract'
-import type { RuntimeWorktreePsResult } from '../../../shared/runtime-worktree-contracts'
+import type { RuntimeWorktreePsResult } from '../../../shared/worktree/catalog/runtime-worktree-contracts'
 import type { RpcContext } from './core'
-import { isHostOwnPhone } from './host-own-phone'
+import { isHostOwnPhone } from './callers/host-own-phone'
 
 export type SectionsContext = Pick<RpcContext, 'clientKind' | 'pairedDeviceParentId'> & {
   runtime: {

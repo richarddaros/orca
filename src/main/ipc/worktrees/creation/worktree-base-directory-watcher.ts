@@ -24,8 +24,8 @@ import {
   clearActiveGitStatusRefBinding,
   updateActiveGitStatusRefBinding,
   type GitStatusRefBindingRequest
-} from '../../worktree-git-status-ref-watch'
-import { WorktreeWatcherFailureRefreshCooldown } from '../../worktree-watcher-failure-refresh-cooldown'
+} from '../git/worktree-git-status-ref-watch'
+import { WorktreeWatcherFailureRefreshCooldown } from './worktree-watcher-failure-refresh-cooldown'
 import {
   handleLocalWatchEvents,
   handleWatchOverflow,
@@ -147,6 +147,7 @@ async function removeWatch(key: string): Promise<void> {
   watch.disposed = true
   clearTimeout(watch.notifyTimer ?? undefined)
   disposeWorktreeHeadIdentityRefreshState(watch.headIdentityRefresh)
+  watch.watcherFailureRefresh.dispose()
   clearPendingWorktreeBaseNotifications(watch)
   await watch.subscription.unsubscribe().catch((error) => {
     console.warn(`[worktree-base-watcher] failed to unwatch ${watch.path}:`, error)

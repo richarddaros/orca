@@ -2,8 +2,8 @@ import React from 'react'
 import { ListPlus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { isPairedWebClientWindow } from '@/lib/desktop-window-chrome'
-import { translate } from '@/i18n/i18n'
+import { isPairedWebClientWindow } from '@/app-shell/chrome/desktop-window-chrome'
+import { useTranslate } from '@/i18n/use-translate'
 import { useAppStore } from '@/store'
 import { CustomSectionDialogHost } from './CustomSectionDialogHost'
 import { useShownCustomSidebarSections } from './use-shown-custom-sidebar-sections'
@@ -19,12 +19,13 @@ export function CustomSectionHeaderSlot({
   agentsViewActive: boolean
   preserveWorkspaceBoardOpen: boolean
 }): React.JSX.Element | null {
+  const t = useTranslate()
   const setDialog = useAppStore((s) => s.setCustomSectionDialog)
   const ready = useShownCustomSidebarSections() !== null
   if (isPairedWebClientWindow()) {
     return null
   }
-  const label = translate('customSections.newSection', 'New section')
+  const label = t('customSections.newSection', 'New section')
   return (
     <div className="flex size-6 shrink-0 items-center">
       {agentsViewActive || !ready ? null : (

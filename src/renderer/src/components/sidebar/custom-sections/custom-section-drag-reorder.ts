@@ -1,7 +1,10 @@
 import { useAppStore } from '@/store'
 import { getCustomSectionIdFromGroupKey } from '../../../../../shared/custom-sidebar-sections/custom-sidebar-sections-state'
-import { PINNED_GROUP_KEY } from '../../../../../shared/sidebar-list/group-keys'
-import { moveWorktreeIdsWithinGroup, type WorktreeDragGroup } from '../worktree-manual-order'
+import { PINNED_GROUP_KEY } from '../../../../../shared/sidebar-list/sections/group-keys'
+import {
+  moveWorktreeIdsWithinGroup,
+  type WorktreeDragGroup
+} from '../worktree-list/drag/worktree-manual-order'
 
 /** Fork (richarddaros/orca): a drag inside Pinned or a user section reorders that section and keeps the sort. */
 export function reorderCustomSectionByDrag(args: {

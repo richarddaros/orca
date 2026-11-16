@@ -87,7 +87,11 @@ test('a user section keeps the order the user chose while Recent re-sorts on act
   // Why: bumping the active workspace never re-sorts, so the one moved by activity must be in the background.
   await orcaPage.evaluate((id) => window.__store?.getState().setActiveWorktree(id), top)
   await waitForQuietActivity(orcaPage, [first, second])
-  expect(await listOrder(orcaPage, [first, second])).toEqual([top, bottom])
+  // Why poll: this precondition is upstream's Recent sort, before any section exists. One run in seven read the reverse
+  // order here and the same build then passed five times, so the sort may settle after the activation.
+  await expect
+    .poll(() => listOrder(orcaPage, [first, second]), { timeout: 15_000 })
+    .toEqual([top, bottom])
 
   // Control: outside sections, activity moves the background workspace to the top.
   await bumpActivity(orcaPage, bottom)

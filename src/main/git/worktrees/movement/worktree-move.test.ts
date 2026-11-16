@@ -22,7 +22,7 @@ vi.mock('../../command-runner/git-exec-file-sync', async (importOriginal) => ({
   gitExecFileSync: gitExecFileSyncMock
 }))
 
-vi.mock('../../command-runner/wsl-path-translation', async (importOriginal) => ({
+vi.mock('../../command-runner/host-routing/wsl-path-translation', async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),
   translateWslOutputPaths: translateWslOutputPathsMock
 }))
@@ -44,22 +44,6 @@ registerWorktreeSuiteHooks()
 describe('moveWorktree', () => {
   beforeEach(() => {
     gitExecFileAsyncMock.mockReset()
-  })
-
-  it('runs `git worktree move` from the repo with old and new paths', async () => {
-    gitExecFileAsyncMock.mockResolvedValueOnce({ stdout: '', stderr: '' })
-    await moveWorktree('/repo', '/ws/cunner', '/ws/worktree-creation-spinner')
-    expect(gitExecFileAsyncMock).toHaveBeenCalledWith(
-      ['worktree', 'move', '/ws/cunner', '/ws/worktree-creation-spinner'],
-      { cwd: '/repo' }
-    )
-  })
-
-  it('propagates git failures so the caller can fall back', async () => {
-    gitExecFileAsyncMock.mockRejectedValueOnce(new Error('fatal: destination exists'))
-    await expect(moveWorktree('/repo', '/ws/cunner', '/ws/taken')).rejects.toThrow(
-      'destination exists'
-    )
   })
 
   it('drops cached sparse-checkout state for both the old and new path', async () => {

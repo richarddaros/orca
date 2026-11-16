@@ -1,7 +1,7 @@
 import React from 'react'
 import { Folder } from 'lucide-react'
-import { cn } from '@/lib/utils'
-import { getDirectoryName } from './worktree-card-model'
+import { cn } from '@/lib/class-names'
+import { getDirectoryName } from './workspace-card/controller/worktree-card-model'
 
 /** Fork (richarddaros/orca): a git worktree card names its checkout folder, under the title or beside it in the new card style. */
 export function WorktreeCardFolderLabel({

@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   classifyConflicts,
   finishMerge,
+  forkPhoneTestFiles,
   forkTestFiles,
   formatUpstreamChanges,
   main,
@@ -122,6 +123,17 @@ describe('fork sync', () => {
       'src/main/daemon/node-pty-fd-leak.test.ts',
       'src/renderer/src/lib/react-dev-performance-measure-trim.test.ts'
     ])
+  })
+
+  it('keeps the fork phone-app vitest files as sync gates, relative to mobile/', () => {
+    expect(
+      forkPhoneTestFiles([
+        'mobile/src/worktree/custom-sections-phone-list.test.ts',
+        'mobile/src/worktree/use-workspace-sections.ts',
+        'src/main/daemon/node-pty-fd-leak.test.ts',
+        'tests/e2e/custom-sidebar-sections.spec.ts'
+      ])
+    ).toEqual(['src/worktree/custom-sections-phone-list.test.ts'])
   })
 
   it('lists upstream commits without linking their PR numbers to fork issues', () => {

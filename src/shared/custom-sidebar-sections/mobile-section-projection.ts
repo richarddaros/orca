@@ -15,11 +15,11 @@ import type {
   MobileProjectSectionRepo,
   MobileProjectSectionsResult
 } from '../mobile-project-sections-contract'
-import { DEFAULT_REPO_BADGE_COLOR } from '../repo-badge-color'
+import { DEFAULT_REPO_BADGE_COLOR } from '../repository/appearance/repo-badge-color'
 import type {
   RuntimeWorktreePsResult,
   RuntimeWorktreePsSummary
-} from '../runtime-worktree-contracts'
+} from '../worktree/catalog/runtime-worktree-contracts'
 import { composeWorktreeHostIdentity } from '../worktree/host-qualified-identity'
 
 /** The stand-in repo's id; it cannot collide with a real repo id, which never starts with the group-key prefix. */

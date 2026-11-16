@@ -6,7 +6,7 @@ import type { Store } from '../persistence/loading-store/store'
 import {
   resolveDesktopAuthorizedPath,
   resolveUserNamedRegularFile
-} from './local-file-access-resolution'
+} from './filesystem/access/local-file-access-resolution'
 import { createSenderScopedRequestCancellations } from './sender-scoped-request-cancellation'
 import { startNotebookKernel, type NotebookKernel } from '../notebook/notebook-kernel'
 import {
@@ -15,14 +15,14 @@ import {
   installIpykernel,
   listPythonEnvironments
 } from '../notebook/python-environments'
-import { notebookVenvParent } from '../../shared/notebook-venv-location'
+import { notebookVenvParent } from '../../shared/editor/notebooks/notebook-venv-location'
 import type {
   CreateVenvResult,
   KernelFrameEvent,
   KernelStartResult,
   PythonEnvironment,
   PythonEnvironments
-} from '../../shared/notebook-kernel-types'
+} from '../../shared/editor/notebooks/notebook-kernel-types'
 
 /** Each renderer document's kernels, by notebook file. */
 const kernelsByOwner = new Map<WebContents, Map<string, NotebookKernel>>()
