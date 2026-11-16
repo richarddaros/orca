@@ -7,7 +7,7 @@ import {
   DropdownMenuSubContent,
   DropdownMenuSubTrigger
 } from '@/components/ui/dropdown-menu'
-import { translate } from '@/i18n/i18n'
+import { useTranslate } from '@/i18n/use-translate'
 import { useAppStore } from '@/store'
 import {
   PINNED_CUSTOM_SECTION_ID,
@@ -36,6 +36,7 @@ function SectionItems({
   disabled,
   sections
 }: CardMenuItemsProps & { sections: CustomSidebarSectionsState }): React.JSX.Element {
+  const t = useTranslate()
   const moveToSection = useAppStore((s) => s.moveWorkspaceToCustomSection)
   const removeFromSection = useAppStore((s) => s.removeWorkspaceFromCustomSection)
   const setDialog = useAppStore((s) => s.setCustomSectionDialog)
@@ -69,7 +70,7 @@ function SectionItems({
       <DropdownMenuSub>
         <DropdownMenuSubTrigger disabled={disabled}>
           <ListPlus className="size-3.5" />
-          {translate('customSections.moveToSection', 'Move to section')}
+          {t('customSections.moveToSection', 'Move to section')}
         </DropdownMenuSubTrigger>
         <DropdownMenuSubContent>
           {sections.sections.map((section) => (
@@ -83,7 +84,7 @@ function SectionItems({
           ))}
           <DropdownMenuSeparator />
           <DropdownMenuItem onSelect={() => setDialog({ mode: 'create', firstMember: workspace })}>
-            {translate('customSections.newSectionWithWorkspace', 'New section with this workspace')}
+            {t('customSections.newSectionWithWorkspace', 'New section with this workspace')}
           </DropdownMenuItem>
         </DropdownMenuSubContent>
       </DropdownMenuSub>
@@ -94,19 +95,19 @@ function SectionItems({
             onSelect={() => above !== null && void moveToSection(workspace, current.id, above)}
           >
             <ArrowUp className="size-3.5" />
-            {translate('customSections.moveWorkspaceUp', 'Move up in section')}
+            {t('customSections.moveWorkspaceUp', 'Move up in section')}
           </DropdownMenuItem>
           <DropdownMenuItem
             disabled={disabled || below === null}
             onSelect={() => below !== null && void moveToSection(workspace, current.id, below)}
           >
             <ArrowDown className="size-3.5" />
-            {translate('customSections.moveWorkspaceDown', 'Move down in section')}
+            {t('customSections.moveWorkspaceDown', 'Move down in section')}
           </DropdownMenuItem>
           {current.id === PINNED_CUSTOM_SECTION_ID ? null : (
             <DropdownMenuItem disabled={disabled} onSelect={() => removeFromSection(workspace)}>
               <ListMinus className="size-3.5" />
-              {translate('customSections.removeFromSection', 'Remove from section')}
+              {t('customSections.removeFromSection', 'Remove from section')}
             </DropdownMenuItem>
           )}
         </>

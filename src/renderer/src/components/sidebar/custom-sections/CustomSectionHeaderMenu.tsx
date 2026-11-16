@@ -9,7 +9,7 @@ import {
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu'
 import { isPairedWebClientWindow } from '@/app-shell/chrome/desktop-window-chrome'
-import { translate } from '@/i18n/i18n'
+import { useTranslate } from '@/i18n/use-translate'
 import { useAppStore } from '@/store'
 import {
   PINNED_CUSTOM_SECTION_ID,
@@ -35,6 +35,7 @@ function SectionActionsMenu({
   sectionId: string
   label: string
 }): React.JSX.Element | null {
+  const t = useTranslate()
   const sections = useShownCustomSidebarSections()
   const moveSection = useAppStore((s) => s.moveCustomSection)
   const setDialog = useAppStore((s) => s.setCustomSectionDialog)
@@ -55,7 +56,7 @@ function SectionActionsMenu({
             variant="ghost"
             size="icon-xs"
             data-repo-header-action=""
-            aria-label={translate('customSections.actionsFor', 'Section actions for {{name}}', {
+            aria-label={t('customSections.actionsFor', 'Section actions for {{name}}', {
               name: label
             })}
             onClick={(event) => event.stopPropagation()}
@@ -87,16 +88,16 @@ function SectionActionsMenu({
             })
           }
         >
-          {translate('customSections.renameTitle', 'Rename section')}
+          {t('customSections.renameTitle', 'Rename section')}
         </DropdownMenuItem>
         <DropdownMenuItem disabled={index === 0} onSelect={() => void moveSection(sectionId, -1)}>
-          {translate('customSections.moveUp', 'Move section up')}
+          {t('customSections.moveUp', 'Move section up')}
         </DropdownMenuItem>
         <DropdownMenuItem
           disabled={index === sections.sections.length - 1}
           onSelect={() => void moveSection(sectionId, 1)}
         >
-          {translate('customSections.moveDown', 'Move section down')}
+          {t('customSections.moveDown', 'Move section down')}
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem
@@ -104,11 +105,11 @@ function SectionActionsMenu({
           disabled={isPinned}
           onSelect={() => setDialog({ mode: 'delete', sectionId, name: section.name })}
         >
-          {translate('customSections.delete', 'Delete section')}
+          {t('customSections.delete', 'Delete section')}
         </DropdownMenuItem>
         {isPinned ? (
           <p className="max-w-56 px-2 py-1 text-2xs text-muted-foreground">
-            {translate('customSections.pinnedStays', 'Pinned stays: Pin and Unpin use it.')}
+            {t('customSections.pinnedStays', 'Pinned stays: Pin and Unpin use it.')}
           </p>
         ) : null}
       </DropdownMenuContent>

@@ -10,6 +10,7 @@ import type {
 import type { WorktreeCardController } from './controller/use-worktree-card-controller'
 import { CARD_FORK_PARTS } from './card-fork-parts'
 import { CARD_ACTIVITY_PARTS } from './template/card-activity-parts'
+import { WORKSPACE_CARD_ELEMENTS } from './template/card-element-registry'
 import { CARD_IDENTITY_PARTS } from './template/card-identity-parts'
 import { CARD_PRIMITIVES } from './template/card-primitives'
 import {
@@ -65,6 +66,7 @@ type Variant = {
   branch?: string
   detachedHead?: boolean
   withProjectChip?: boolean
+  detailsRow?: boolean
 }
 
 function facts({
@@ -73,7 +75,8 @@ function facts({
   path = PATH,
   branch = '',
   detachedHead = false,
-  withProjectChip = false
+  withProjectChip = false,
+  detailsRow = true
 }: Variant): WorkspaceCardFacts {
   return {
     ws: {
@@ -130,7 +133,7 @@ function facts({
         inlineAgents: false,
         host: true
       },
-      detailsRow: true,
+      detailsRow,
       agentRows: 'full'
     },
     env: { projectGroups: false }
@@ -194,6 +197,13 @@ describe('card folder part', () => {
     expect(folderLabelCount(markup)).toBe(1)
   })
 
+  it('keeps the folder beside the title in the new card style when the details row is off', () => {
+    const markup = renderCard({ style: 'new', detailsRow: false })
+
+    expect(folderLabelCount(markup)).toBe(1)
+    expect(markup.indexOf(FOLDER)).toBeLessThan(markup.indexOf(part('Title')))
+  })
+
   it('keeps the new-style folder from shrinking under a long title', () => {
     const classes = folderLabelClasses(renderCard({ style: 'new' }))
 
@@ -244,6 +254,16 @@ describe('card folder part', () => {
 
     expect(Object.keys(CARD_FORK_PARTS)).not.toHaveLength(0)
     expect(Object.keys(CARD_FORK_PARTS).filter((name) => upstream.has(name))).toEqual([])
+  })
+
+  // Why: the stubs above hide the registry the app compiles with; a fork part dropped from it makes the sidebar throw "unknown element".
+  it('registers the fork parts in the registry the app compiles the default card with', () => {
+    expect(() =>
+      compileCardTemplate<Card>(DEFAULT_WORKSPACE_CARD_TEMPLATE, WORKSPACE_CARD_ELEMENTS)
+    ).not.toThrow()
+    for (const [name, element] of Object.entries(CARD_FORK_PARTS)) {
+      expect(WORKSPACE_CARD_ELEMENTS[name]).toBe(element)
+    }
   })
 
   it('puts the project chip first, then the folder, then the title in the new card style', () => {

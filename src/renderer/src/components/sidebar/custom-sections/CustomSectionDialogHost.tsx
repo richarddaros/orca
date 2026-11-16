@@ -8,7 +8,7 @@ import {
   DialogHeader,
   DialogTitle
 } from '@/components/ui/dialog'
-import { translate } from '@/i18n/i18n'
+import { useTranslate } from '@/i18n/use-translate'
 import { useAppStore } from '@/store'
 import { PINNED_CUSTOM_SECTION_ID } from '../../../../../shared/custom-sidebar-sections/custom-sidebar-sections-state'
 import { ProjectGroupNameDialog } from '../worktree-list/rows/ProjectGroupNameDialog'
@@ -16,6 +16,7 @@ import { getCustomSectionDisplayName } from './custom-section-display-name'
 
 /** Fork (richarddaros/orca): the create, rename and delete dialogs for user sidebar sections. */
 export function CustomSectionDialogHost(): React.JSX.Element {
+  const t = useTranslate()
   const dialog = useAppStore((s) => s.customSectionDialog)
   const setDialog = useAppStore((s) => s.setCustomSectionDialog)
   const createSection = useAppStore((s) => s.createCustomSection)
@@ -51,19 +52,17 @@ export function CustomSectionDialogHost(): React.JSX.Element {
         open={dialog?.mode === 'create' || isRename}
         title={
           isRename
-            ? translate('customSections.renameTitle', 'Rename section')
-            : translate('customSections.newSection', 'New section')
+            ? t('customSections.renameTitle', 'Rename section')
+            : t('customSections.newSection', 'New section')
         }
-        description={translate(
+        description={t(
           'customSections.nameDescription',
           'Workspaces stay in the order you choose; agent activity never reorders a section.'
         )}
         initialName={isRename ? dialog.currentName : ''}
-        nameLabel={translate('customSections.nameLabel', 'Section name')}
+        nameLabel={t('customSections.nameLabel', 'Section name')}
         confirmLabel={
-          isRename
-            ? translate('customSections.save', 'Save')
-            : translate('customSections.create', 'Create')
+          isRename ? t('customSections.save', 'Save') : t('customSections.create', 'Create')
         }
         onOpenChange={handleOpenChange}
         onSubmit={handleSubmitName}
@@ -72,12 +71,12 @@ export function CustomSectionDialogHost(): React.JSX.Element {
         <DialogContent className="max-w-sm sm:max-w-sm" showCloseButton={false}>
           <DialogHeader>
             <DialogTitle>
-              {translate('customSections.deleteTitle', 'Delete section "{{name}}"?', {
+              {t('customSections.deleteTitle', 'Delete section "{{name}}"?', {
                 name: dialog?.mode === 'delete' ? dialog.name : ''
               })}
             </DialogTitle>
             <DialogDescription>
-              {translate(
+              {t(
                 'customSections.deleteDescription',
                 'Its workspaces return to the normal list. No workspace is deleted.'
               )}
@@ -85,7 +84,7 @@ export function CustomSectionDialogHost(): React.JSX.Element {
           </DialogHeader>
           <DialogFooter>
             <Button type="button" variant="outline" size="sm" onClick={() => setDialog(null)}>
-              {translate('customSections.cancel', 'Cancel')}
+              {t('customSections.cancel', 'Cancel')}
             </Button>
             <Button
               type="button"
@@ -98,7 +97,7 @@ export function CustomSectionDialogHost(): React.JSX.Element {
                 setDialog(null)
               }}
             >
-              {translate('customSections.delete', 'Delete section')}
+              {t('customSections.delete', 'Delete section')}
             </Button>
           </DialogFooter>
         </DialogContent>

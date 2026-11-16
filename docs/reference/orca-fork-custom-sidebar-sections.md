@@ -273,6 +273,10 @@ aparelho**:
   A 260 px ele fica com 2 a 8 letras num projeto de nome longo (como
   `mcf-infra`); a 220 px, com 0 a 1. A pasta ficar sempre visível foi a escolha
   do dono. Se isso incomodar, a saída é esconder a pasta abaixo de uma largura.
+- Um folder workspace guardado numa seção (só por estado editado à mão, já que o
+  menu e o drop de seção excluem pastas) sai da lane de pastas antes de a
+  linhagem ser calculada: um worktree filho dele não aninha sob ele e fica na
+  raiz do projeto.
 - Recolher uma seção vale para todos os hosts.
 - Mover e subir uma seção contam o Pinned mesmo quando ele está escondido por
   não ter nenhum workspace fixado.

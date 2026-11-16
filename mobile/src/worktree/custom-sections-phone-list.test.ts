@@ -12,13 +12,16 @@ import {
   sectionsState
 } from '../../../src/shared/custom-sidebar-sections/mobile-section-projection.test-fixture'
 import type { MobileProjectSectionsResult } from '../../../src/shared/mobile-project-sections-contract'
-import { ProjectSectionCatalogSchema } from '../../../src/shared/project-section-catalog-schema'
+import { ProjectSectionCatalogSchema } from '../../../src/shared/sidebar-list/catalog/project-section-catalog-schema'
 import type {
   RuntimeWorktreePsResult,
   RuntimeWorktreePsSummary
-} from '../../../src/shared/runtime-worktree-contracts'
-import { buildProjectSectionCatalog } from './project-section-catalog'
-import { buildSections, type Worktree as PhoneWorktree } from './workspace-list-sections'
+} from '../../../src/shared/worktree/catalog/runtime-worktree-contracts'
+import { buildProjectSectionCatalog } from './project-sections/project-section-catalog'
+import {
+  buildSections,
+  type Worktree as PhoneWorktree
+} from './workspace-list/workspace-list-sections'
 
 // Fork: what the unchanged phone app builds from the two replies this host sends its own phone.
 describe('custom sections on the phone list', () => {
@@ -60,7 +63,7 @@ describe('custom sections on the phone list', () => {
       '',
       'repo',
       new Set(),
-      buildProjectSectionCatalog(served, [], null, 'manual')
+      buildProjectSectionCatalog(served, [], [], null, 'manual')
     )
   }
 
@@ -77,7 +80,7 @@ describe('custom sections on the phone list', () => {
     )
 
     expect(
-      sections.map((section) => [section.title, section.data.map((row) => row.worktreeId)])
+      sections.map((section) => [section.title, section.data.map((item) => item.row.worktreeId)])
     ).toEqual([
       ['Pinned', ['d']],
       ['MCF', ['c', 'a']],
@@ -99,7 +102,7 @@ describe('custom sections on the phone list', () => {
     )
 
     expect(
-      sections.map((section) => [section.title, section.data.map((row) => row.worktreeId)])
+      sections.map((section) => [section.title, section.data.map((item) => item.row.worktreeId)])
     ).toEqual([
       ['MCF', ['parent', 'kid']],
       ['Later', []],

@@ -241,6 +241,7 @@ async function readAntigravityUsage(
   }
 
   // Fork: agy abandons the MCP servers it fails to close; reap its process group so polls do not leak them.
+  // The WSL branch above ignores the flag: wsl.exe runs on Windows, where the reaper does nothing, so inside a distro agy still leaks.
   const result = await run(ANTIGRAVITY_USAGE_ARGS, ANTIGRAVITY_USAGE_TIMEOUT_MS, true)
 
   const reading = parseAntigravityUsageStdout(result.stdout)

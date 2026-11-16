@@ -157,6 +157,16 @@ export function forkTestFiles(forkFiles) {
 }
 
 /**
+ * @param {string[]} forkFiles - paths that differ between upstream and the fork line
+ * @returns {string[]} the fork's phone-app vitest files, as paths relative to mobile/ (its own vitest root)
+ */
+export function forkPhoneTestFiles(forkFiles) {
+  return forkFiles
+    .filter((path) => path.startsWith('mobile/src/') && /\.test\.(ts|tsx)$/.test(path))
+    .map((path) => path.slice('mobile/'.length))
+}
+
+/**
  * @param {{ nodeVersion: string, userAgent: string | undefined, packageJson: { engines?: { node?: string }, packageManager?: string } }} input
  * @returns {string[]} toolchain problems; empty when the run matches the repo's pins
  */
@@ -460,11 +470,26 @@ function publish(worktree, { merge }) {
     .filter(Boolean)
   pnpm(worktree, ['install', '--frozen-lockfile'])
   pnpm(worktree, ['tc'])
+  // Why: upstream adds ratchets that fork code can fail while tc and the code-quality gate stay green.
+  pnpm(worktree, ['check:ratchets'])
   pnpm(worktree, ['test:agent-hub'])
   pnpm(worktree, ['test:fork-sync'])
   const tests = forkTestFiles(forkFiles)
   if (tests.length > 0) {
     pnpm(worktree, ['test', ...tests, '--maxWorkers=2'])
+  }
+  // Why: the root vitest config never collects mobile/, and tc skips it, so a moved import there fails silently.
+  const phoneTests = forkPhoneTestFiles(forkFiles)
+  if (phoneTests.length > 0) {
+    pnpm(worktree, [
+      'exec',
+      'vitest',
+      'run',
+      '--config',
+      'mobile/vitest.config.ts',
+      ...phoneTests,
+      '--maxWorkers=2'
+    ])
   }
   const upstreamRange = `${syncMerge}^1..${syncMerge}^2`
   const upstreamCount = Number(git(worktree, ['rev-list', '--count', upstreamRange]))
@@ -480,7 +505,7 @@ function publish(worktree, { merge }) {
   const body = [
     `Merge \`--no-ff\` de \`origin/main\` (${upstreamCount} commits do upstream) em \`${FORK_LINE}\`, feito por \`fork:sync\`.`,
     '',
-    'Gates: `pnpm install --frozen-lockfile`, `pnpm tc`, `pnpm test:agent-hub`, `pnpm test:fork-sync` e os testes do fork.',
+    'Gates: `pnpm install --frozen-lockfile`, `pnpm tc`, `pnpm check:ratchets`, `pnpm test:agent-hub`, `pnpm test:fork-sync` e os testes do fork (`src/` e `mobile/`).',
     '',
     'Arquivos que diferem do upstream depois do merge:',
     ...forkFiles.map((path) => `- \`${path}\``),

@@ -206,6 +206,7 @@ else process.exit(3)
         ['install', '--frozen-lockfile'],
         ['install', '--frozen-lockfile'],
         ['tc'],
+        ['check:ratchets'],
         ['test:agent-hub'],
         ['test:fork-sync']
       ])

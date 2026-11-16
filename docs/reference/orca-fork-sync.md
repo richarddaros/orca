@@ -286,8 +286,12 @@ continue.
 ### Gates e PR
 
 Os gates antes do push são `pnpm install --frozen-lockfile`, `pnpm tc`,
-`pnpm test:agent-hub`, `pnpm test:fork-sync` e todo `*.test.{ts,tsx,mjs}` alterado pelo
-fork em `src/`, com dois workers. O corpo do PR lista todos os arquivos que
+`pnpm check:ratchets`, `pnpm test:agent-hub`, `pnpm test:fork-sync`, todo
+`*.test.{ts,tsx,mjs}` alterado pelo fork em `src/` e todo `*.test.{ts,tsx}` do fork em
+`mobile/src/` (pela config do próprio `mobile/`, já que a da raiz não o coleta), com dois
+workers. O `check:ratchets` entrou porque o upstream cria ratchets novos que reprovam código do
+fork (`translate()` no render, `setInterval`) sem que `tc` ou `check:code-quality:changed`
+acusem. O corpo do PR lista todos os arquivos que
 ainda diferem do upstream (devem ser só os do fork) e todos os commits do
 upstream que tocaram algum deles, para que cada reaplicação seja revalidada.
 

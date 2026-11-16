@@ -85,6 +85,7 @@
 1 src/renderer/src/hooks/use-now.ts
 1 src/renderer/src/lib/agent-session/hibernation/agent-hibernation-coordinator.ts
 1 src/renderer/src/diagnostics/crash-reporting/crash-diagnostics.ts
+1 src/renderer/src/lib/react-dev-performance-measure-trim.ts
 1 src/renderer/src/lib/window-activity/window-visibility-interval.ts
 1 src/renderer/src/runtime/agent-orchestration/worker-auto-close.ts
 1 src/renderer/src/runtime/hosts/wsl/wsl-refused-read-watch.ts
