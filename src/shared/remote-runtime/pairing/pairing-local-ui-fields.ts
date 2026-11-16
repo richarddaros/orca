@@ -1,4 +1,4 @@
-import type { PersistedUIState } from '../../persisted-ui-state-types'
+import type { PersistedUIState } from '../../orca-profiles/persisted-ui-state-types'
 import { FORK_LOCAL_UI_FIELDS } from '../../custom-sidebar-sections/custom-sidebar-sections-state'
 
 // Pairing-local views use each client’s host catalog/viewport; forwarding them would overwrite another client’s choices.
