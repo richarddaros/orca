@@ -18,10 +18,8 @@ import type {
   RuntimeWorktreePsSummary
 } from '../../../src/shared/worktree/catalog/runtime-worktree-contracts'
 import { buildProjectSectionCatalog } from './project-sections/project-section-catalog'
-import {
-  buildSections,
-  type Worktree as PhoneWorktree
-} from './workspace-list/workspace-list-sections'
+import { buildSections } from './workspace-list/workspace-list-sections'
+import type { Worktree as PhoneWorktree } from './workspace-list/workspace-list-types'
 
 // Fork: what the unchanged phone app builds from the two replies this host sends its own phone.
 describe('custom sections on the phone list', () => {
