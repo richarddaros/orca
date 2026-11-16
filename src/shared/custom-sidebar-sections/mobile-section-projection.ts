@@ -10,11 +10,11 @@ import {
   normalizeCustomSidebarSections,
   type CustomSidebarSection
 } from '../custom-sidebar-sections/custom-sidebar-sections-state'
-import { LOCAL_EXECUTION_HOST_ID } from '../execution-host'
+import { LOCAL_EXECUTION_HOST_ID } from '../execution-host/execution-host'
 import type {
   MobileProjectSectionRepo,
   MobileProjectSectionsResult
-} from '../mobile-project-sections-contract'
+} from '../sidebar-list/catalog/mobile-project-sections-contract'
 import { DEFAULT_REPO_BADGE_COLOR } from '../repository/appearance/repo-badge-color'
 import type {
   RuntimeWorktreePsResult,

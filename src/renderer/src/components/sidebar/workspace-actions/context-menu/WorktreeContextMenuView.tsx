@@ -19,6 +19,7 @@ import { WorktreeStatusMenuItems } from '../../workspace-status/presentation/Wor
 import { CustomSectionCardMenuItems } from '../../custom-sections/CustomSectionCardMenuItems'
 import { WorktreeWslHostStartMenuItem } from '../../workspace-card/host/WorktreeWslHostStartMenuItem'
 import { WorktreeContextMenuOverlays } from './WorktreeContextMenuOverlays'
+import { WorktreeNotificationMuteMenuItem } from './WorktreeNotificationMuteMenuItem'
 import { WorktreeContextMenuDeleteItems } from './WorktreeContextMenuDeleteItems'
 import {
   WorktreeCopySubMenu,
@@ -171,6 +172,9 @@ export default function WorktreeContextMenuView({ model }: { model: WorktreeCont
                 ? t('auto.components.sidebar.WorktreeContextMenu.8dacff1fe0', 'Mark Read')
                 : t('auto.components.sidebar.WorktreeContextMenu.f50603c6b2', 'Mark Unread')}
             </DropdownMenuItem>
+          )}
+          {!isMultiContext && (
+            <WorktreeNotificationMuteMenuItem worktreeId={worktree.id} disabled={isDeleting} />
           )}
           <WorktreeContextMenuDeleteItems model={model} />
           <DropdownMenuSeparator />

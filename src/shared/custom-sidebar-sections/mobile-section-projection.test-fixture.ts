@@ -2,7 +2,7 @@
 import type {
   MobileProjectSectionCatalog,
   MobileProjectSectionsResult
-} from '../mobile-project-sections-contract'
+} from '../sidebar-list/catalog/mobile-project-sections-contract'
 import type {
   RuntimeWorktreePsResult,
   RuntimeWorktreePsSummary

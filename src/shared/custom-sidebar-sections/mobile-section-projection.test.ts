@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { MobileProjectSectionsResult } from '../mobile-project-sections-contract'
+import type { MobileProjectSectionsResult } from '../sidebar-list/catalog/mobile-project-sections-contract'
 import type { RuntimeWorktreePsResult } from '../worktree/catalog/runtime-worktree-contracts'
 import { ProjectSectionCatalogSchema } from '../sidebar-list/catalog/project-section-catalog-schema'
 import {

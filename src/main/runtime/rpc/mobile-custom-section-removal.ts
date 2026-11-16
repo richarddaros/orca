@@ -7,7 +7,7 @@ import {
   hasNamedCustomSections,
   projectCustomSectionsOntoPs
 } from '../../../shared/custom-sidebar-sections/mobile-section-projection'
-import { LOCAL_EXECUTION_HOST_ID } from '../../../shared/execution-host'
+import { LOCAL_EXECUTION_HOST_ID } from '../../../shared/execution-host/execution-host'
 import type { RuntimeWorktreePsResult } from '../../../shared/worktree/catalog/runtime-worktree-contracts'
 import { WorktreeArchiveHookFailedError } from '../../../shared/worktree/removal/archive-hook-removal-gate'
 import { getExplicitWorktreeIdSelector } from '../workspaces/catalog/runtime-worktree-selection'
