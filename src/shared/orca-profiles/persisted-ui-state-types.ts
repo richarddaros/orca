@@ -1,4 +1,5 @@
 import type { GitHistoryRefs } from '../git/history/git-history-types'
+import type { BotChatFold } from '../bots/bot-chat-tree'
 import type { JiraQuickFilterState } from '../jira/jira-quick-filters'
 import type { BrowserDevToolsDockLayout } from '../browser/devtools/browser-devtools-dock'
 import type { JiraSavedFilterState } from '../jira/jira-saved-filters'
@@ -35,6 +36,7 @@ import type {
 import type { WorkspaceStatusDefinition } from '../worktree/types'
 import type { PersistedAutomationHostFilter } from '../automations/ownership/automation-host-filter'
 import type { PendingRuntimeRepoRemoval } from '../remote-runtime/host-catalog/pending-runtime-repo-removal'
+import type { BotSidebarView } from '../bots/bot-sidebar-view'
 
 export type PersistedUIState = {
   gitGraphFiltersByWorktree?: Record<string, GitHistoryRefs>
@@ -54,6 +56,9 @@ export type PersistedUIState = {
   rightSidebarWidth: number
   /** Right sidebar activity-bar edge. Missing on older profiles, which stay at the top. */
   activityBarPosition?: ActivityBarPosition
+  activityBarOrder?: string[]
+  activityBarBotOrder?: string[]
+  activityBarHidden?: string[]
   markdownTocPanelWidth?: number
   combinedDiffFileTreeWidth?: number
   groupBy: 'none' | 'workspace-status' | 'repo' | 'pr-status'
@@ -107,6 +112,12 @@ export type PersistedUIState = {
   agentsHideWorkspacesFromOtherDevices?: boolean
   agentsHideAutomationGeneratedWorkspaces?: boolean
   agentsHideCliCreatedWorkspaces?: boolean
+  /** A bot's workspaces list only under the bot, not in their project. Absent means on. */
+  hideBotCreatedWorkspaces?: boolean
+  /** The Bots section's Bot options. Absent means Manual order, nothing hidden. */
+  botSidebarView?: BotSidebarView
+  /** A bot chat's manual fold in Activity and the sidebar, by `botChatFoldKey`. Absent means none. */
+  botChatFolds?: Record<string, BotChatFold>
   /** Agents-view: include child (orchestration-dispatched) agent threads. Absent means off. */
   agentsShowChildAgents?: boolean
   /** Agents-view compact thread rows. Absent means on. */
@@ -128,6 +139,9 @@ export type PersistedUIState = {
   workspaceStatuses?: WorkspaceStatusDefinition[]
   workspaceBoardOpacity?: number
   workspaceBoardColumnWidth?: number
+  /** Dragged cap on the sidebar Bots section in px; absent or null keeps the default 40% cap. */
+  sidebarBotsHeight?: number | null
+  sidebarProjectsFirst?: boolean
   syncTaskStatusFromWorkspaceBoard?: boolean
   /** Migrate reversed defaults once; never infer later user order from IDs/labels. */
   _workspaceStatusesDefaultOrderMigrated?: boolean
@@ -143,7 +157,7 @@ export type PersistedUIState = {
   _kimiStatusBarDefaultAdded?: boolean
   /** One-shot migration flag for adding the default-on MiniMax status item. */
   _minimaxStatusBarDefaultAdded?: boolean
-  /** One-shot migration flag for adding the default-on Antigravity status item. */
+  /** Retired with Antigravity usage; kept so older builds sharing the profile don't re-add the item. */
   _antigravityStatusBarDefaultAdded?: boolean
   /** One-shot migration flag for adding the default-on Grok status item. */
   _grokStatusBarDefaultAdded?: boolean
@@ -153,6 +167,8 @@ export type PersistedUIState = {
   _zcodeStatusBarDefaultAdded?: boolean
   /** One-shot migration flag for adding the default-on Muse status item. */
   _museStatusBarDefaultAdded?: boolean
+  /** One-shot migration flag for adding the default-on Git blame status item. */
+  _gitBlameStatusBarDefaultAdded?: boolean
   statusBarItems: StatusBarItem[]
   statusBarVisible: boolean
   /** Why: this is client-side presentation, not a provider/account or execution-host setting. */
@@ -230,6 +246,8 @@ export type PersistedUIState = {
   browserKagiSessionLink?: string | null
   /** Side and size of DevTools docked in a browser pane; one choice for every page, like Chrome. */
   browserDevToolsDock?: BrowserDevToolsDockLayout
+  /** Width of extension side panels, in CSS px; one width for every extension, like Chrome. */
+  browserExtensionSidePanelWidth?: number
   /** Saved window bounds so the app restores last position/size instead of maximizing each launch. */
   windowBounds?: { x: number; y: number; width: number; height: number } | null
   /** Whether the window was maximized when it was last closed. */
@@ -264,6 +282,10 @@ export type PersistedUIState = {
   starNagAgentValueMomentAppVersion?: string | null
   trustedOrcaHooks?: PersistedTrustedOrcaHooks
   setupScriptPromptDismissedRepoIds?: string[]
+  /** Collapses the sidebar's "Moved to WSL host" list to its header. Desktop-only. */
+  wslMovedSectionCollapsed?: boolean
+  /** Moved-project entries the user hid from that list (`wslMovedProjectKey`); dropped once the project is no longer moved. */
+  hiddenWslMovedProjectKeys?: string[]
   /** Pet overlay visibility, separate from the experimentalPet settings flag so "Hide pet" is a reversible dismiss; absent = true. */
   petVisible?: boolean
   /** Active pet id (bundled id or custom UUID); unknown ids fall back to the default on read so a removed custom pet doesn't blank the overlay. */

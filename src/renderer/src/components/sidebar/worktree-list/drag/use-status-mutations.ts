@@ -20,13 +20,29 @@ import { switchSortToManualAfterDrop } from '../listing/manual-sort-switch-toast
 import { isWorkspaceStatusAllowedOnHost } from '@/store/workspaces/status/host-workspace-status-columns'
 import { reorderCustomSectionByDrag } from '../../custom-sections/custom-section-drag-reorder'
 import type { WorktreeReorderArgs, WorktreeStatusDropAtIndexArgs } from './drop-commit-context'
-import type { WorktreeManualOrderCatalog } from './worktree-manual-order-catalog'
+import {
+  buildWorktreeManualOrderCatalog,
+  type WorktreeManualOrderCatalog
+} from './worktree-manual-order-catalog'
+import { getIndexedAllWorktrees } from '@/store/slices/worktrees/listing/worktree-catalog-index'
+import {
+  selectFolderWorkspaces,
+  selectWorktreesByRepo
+} from '@/store/workspaces/catalog/workspace-record-fields'
 import {
   collectDropWrites,
   dropWriteRows,
   uniqueDraggedKeys,
   type DraggedWorktreeCopies
 } from './dragged-worktree-copies'
+
+function readManualOrderCatalog(): WorktreeManualOrderCatalog {
+  const state = useAppStore.getState()
+  return buildWorktreeManualOrderCatalog({
+    worktrees: getIndexedAllWorktrees(selectWorktreesByRepo(state)),
+    folderWorkspaces: selectFolderWorkspaces(state)
+  })
+}
 
 /** Drops cards that can't take this status (another paired host's column), so they aren't re-ranked either. */
 function idsAcceptingStatus(
@@ -42,11 +58,10 @@ function idsAcceptingStatus(
 
 // Route every status/rank write through dropWriteRows because IDs repeat across hosts.
 export function useWorktreeStatusMutations(args: {
-  manualOrderCatalog: WorktreeManualOrderCatalog
   workspaceStatuses: readonly WorkspaceStatusDefinition[]
   sortBy: SortBy
 }) {
-  const { manualOrderCatalog, workspaceStatuses, sortBy } = args
+  const { workspaceStatuses, sortBy } = args
   const updateWorktreeMeta = useAppStore((s) => s.updateWorktreeMeta)
   const updateWorktreesMeta = useAppStore((s) => s.updateWorktreesMeta)
   const setWorktreesPinnedAndReveal = useAppStore((s) => s.setWorktreesPinnedAndReveal)
@@ -100,6 +115,7 @@ export function useWorktreeStatusMutations(args: {
       const dropArgs = { ...requestedDrop, worktreeIds }
       // Sidebar lanes key their cards by host identity: rank only the copies this drop writes.
       const draggedKeys = uniqueDraggedKeys(dropArgs.worktreeIds.flatMap(rowsFor.status))
+      const manualOrderCatalog = readManualOrderCatalog()
       const order = buildManualOrderUpdatesForGroupDrop({
         groups: dropArgs.groups,
         targetGroupKey: getWorkspaceStatusGroupKey(dropArgs.status),
@@ -126,7 +142,7 @@ export function useWorktreeStatusMutations(args: {
       }
       void updateWorktreesMeta(updates)
     },
-    [manualOrderCatalog, updateWorktreesMeta, workspaceStatuses]
+    [updateWorktreesMeta, workspaceStatuses]
   )
 
   const pinWorktrees = useCallback(
@@ -148,6 +164,7 @@ export function useWorktreeStatusMutations(args: {
       if (reorderCustomSectionByDrag(reorderArgs)) {
         return
       }
+      const manualOrderCatalog = readManualOrderCatalog()
       const result = buildManualOrderUpdatesForVisibleGroups({
         groups: reorderArgs.groups,
         sourceGroupKey: reorderArgs.sourceGroupKey,
@@ -172,7 +189,7 @@ export function useWorktreeStatusMutations(args: {
       }
       void updateWorktreesMeta(updates)
     },
-    [manualOrderCatalog, updateWorktreesMeta, workspaceStatuses]
+    [updateWorktreesMeta, workspaceStatuses]
   )
 
   const shouldShowWorkspaceBoardDropIndicator = useCallback(
@@ -200,6 +217,7 @@ export function useWorktreeStatusMutations(args: {
       if (worktreeIds.length === 0) {
         return
       }
+      const manualOrderCatalog = readManualOrderCatalog()
       const result = buildWorkspaceKanbanSidebarDropUpdates({
         ...dropArgs,
         worktreeIds,
@@ -220,7 +238,7 @@ export function useWorktreeStatusMutations(args: {
       useAppStore.getState().recordFeatureInteraction('workspace-board-actions')
       void updateWorktreesMeta(result.updates)
     },
-    [manualOrderCatalog, sortBy, updateWorktreesMeta, workspaceStatuses]
+    [sortBy, updateWorktreesMeta, workspaceStatuses]
   )
 
   return {

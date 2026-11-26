@@ -18,6 +18,7 @@ import {
   getLaneHostWorktreeIds
 } from '../sidebar-list/hosts/host-labels'
 import { appendWorktreeRows, buildFolderWorkspaceRow } from '../sidebar-list/sections/row-builders'
+import { emitPinnedGroup } from '../sidebar-list/sections/pinned-group-rows'
 import type { Row } from '../sidebar-list/row-types'
 import type { SidebarRowPlanInputs } from '../sidebar-list/sidebar-row-plan'
 import type { WorktreeGroupEntry } from '../sidebar-list/sections/worktree-group-entry'
@@ -54,23 +55,19 @@ type BuiltPlan<Section extends OccurrenceSection> = WorktreeOccurrencePlan<Workt
 export type CustomSectionPlan = {
   /** Folder workspaces filed under a user section leave their lane. */
   renderableFolders: typeof getRenderableFolderWorkspaces
-  /** The upstream occurrence plan, with user sections placed around it and their rows kept for `emitSections`. */
+  /** The upstream occurrence plan, with user sections placed around it and their rows kept for `emitPinnedGroup`. */
   build: <Section extends OccurrenceSection>(args: BuildArgs<Section>) => BuiltPlan<Section>
   /** Pinned, user sections and folder lanes render outside the ordered project groups. */
   isPlacedOutsideGroups: (key: string) => boolean
-  emitSections: (
-    position: 'before' | 'after',
-    result: Row[],
-    collapsedGroups: Set<string>,
-    hostContextLabelByWorktreeIdentity?: ReadonlyMap<string, string>
-  ) => void
+  /** Upstream's Pinned group, with the user sections stored before and after it emitted around it. */
+  emitPinnedGroup: typeof emitPinnedGroup
 }
 
 const NO_CUSTOM_SECTIONS: CustomSectionPlan = {
   renderableFolders: getRenderableFolderWorkspaces,
   build: (args) => buildWorktreeOccurrencePlan(args),
   isPlacedOutsideGroups: (key) => key === PINNED_GROUP_KEY || isFolderLaneSectionKey(key),
-  emitSections: () => {}
+  emitPinnedGroup
 }
 
 const identityOf = getWorktreeHostIdentity
@@ -293,15 +290,20 @@ export function createCustomSectionPlan(
     },
     isPlacedOutsideGroups: (key) =>
       key === PINNED_GROUP_KEY || sectionKeys.has(key) || isFolderLaneSectionKey(key),
-    emitSections: (position, result, collapsedGroups, hostContextLabelByWorktreeIdentity) => {
+    // Why a wrapper: sidebar-row-plan.ts sits at the 300-line limit, so its call site stays one upstream call.
+    emitPinnedGroup: (...args) => {
+      const [, , , collapsedGroups, result, , hostContextLabelByWorktreeIdentity] = args
       const pinnedIndex = state.sections.findIndex(
         (section) => section.id === PINNED_CUSTOM_SECTION_ID
       )
-      const range =
-        position === 'before'
-          ? state.sections.slice(0, pinnedIndex)
-          : state.sections.slice(pinnedIndex + 1)
-      if (position === 'after' && pinnedSection?.name) {
+      const emit = (sections: readonly CustomSidebarSection[]): void => {
+        for (const section of sections) {
+          emitCustomSection(section, result, collapsedGroups, hostContextLabelByWorktreeIdentity)
+        }
+      }
+      emit(state.sections.slice(0, pinnedIndex))
+      emitPinnedGroup(...args)
+      if (pinnedSection?.name) {
         const headerIndex = result.findIndex(
           (row) => row.type === 'header' && row.key === PINNED_GROUP_KEY
         )
@@ -310,9 +312,7 @@ export function createCustomSectionPlan(
           result[headerIndex] = { ...header, label: pinnedSection.name }
         }
       }
-      for (const section of range) {
-        emitCustomSection(section, result, collapsedGroups, hostContextLabelByWorktreeIdentity)
-      }
+      emit(state.sections.slice(pinnedIndex + 1))
     }
   }
 }

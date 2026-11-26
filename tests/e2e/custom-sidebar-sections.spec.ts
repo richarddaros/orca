@@ -1,8 +1,11 @@
 import { existsSync, readFileSync } from 'node:fs'
-import type { ElectronApplication, Page } from '@stablyai/playwright-test'
-import { test, expect } from './helpers/orca-app'
-import { attachRepoAndOpenTerminal, createRestartSession } from './helpers/orca-restart'
-import { getAllWorktreeIds, waitForSessionReady } from './helpers/store'
+import { expect, type ElectronApplication, type Page } from '@stablyai/playwright-test'
+import { test } from './desktop/electron-fixtures/orca-app'
+import {
+  attachRepoAndOpenTerminal,
+  createRestartSession
+} from './desktop/electron-fixtures/orca-restart'
+import { getAllWorktreeIds, waitForSessionReady } from './desktop/renderer-probes/store'
 import { TEST_REPO_PATH_FILE } from './global-setup'
 
 // Fork (richarddaros/orca): user sidebar sections, issue #10.

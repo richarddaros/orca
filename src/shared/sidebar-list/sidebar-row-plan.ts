@@ -6,6 +6,7 @@ import type { WorktreeLineage } from '../worktree/lineage-types'
 import type { SidebarLineageParentIdentities } from './lineage/worktree-lineage-projection'
 import type { WorkspaceStatusDefinition, Worktree } from '../worktree/types'
 import type { ExecutionHostId } from '../execution-host/execution-host'
+import type { HiddenProjects } from '../project/catalog/hidden-projects'
 import { ALL_GROUP_KEY, PINNED_GROUP_KEY } from './sections/group-keys'
 import { appendOrderedGroups, type SectionAppendContext } from './sections/group-sections'
 
@@ -29,7 +30,6 @@ import {
   getProjectGroupOccurrencePaths
 } from './sections/project-group-sections'
 import { getSidebarLineageChildren } from './lineage/pinned-section-worktrees'
-import { emitPinnedGroup } from './sections/pinned-group-rows'
 import { appendWorktreeRows, buildPendingCreationRow } from './sections/row-builders'
 import {
   getFolderLaneSections,
@@ -86,6 +86,8 @@ export type SidebarRowPlanInputs = {
   filterRepoIds: readonly string[]
   /** Fork (richarddaros/orca): user sections; absent keeps upstream rows. */
   customSidebarSections?: CustomSidebarSectionsState | null
+  /** A hidden project's rows reach the plan only under a folder workspace; they never make its section. */
+  hiddenProjects?: HiddenProjects
 }
 
 /** Plans the sidebar's sections once; `render` emits rows for a collapse state. */
@@ -131,7 +133,7 @@ export function planSidebarRows(inputs: SidebarRowPlanInputs) {
 
   const projectGroupPaths = getProjectGroupOccurrencePaths(projectGroups)
   // Folder rows are occurrences too, so a folder parent nests its children like any other row.
-  const folders = getSidebarFolderOccurrences(renderableFolderWorkspaces)
+  const folders = getSidebarFolderOccurrences(renderableFolderWorkspaces, inputs.hiddenProjects)
   const lineageChildren = nestLineage
     ? getSidebarLineageChildren(
         worktrees,
@@ -143,7 +145,7 @@ export function planSidebarRows(inputs: SidebarRowPlanInputs) {
       )
     : new Map<string, Worktree[]>()
   const occurrencePlan = userSections.build({
-    rows: [...worktrees, ...folders.rows],
+    rows: folders.withPlacedRows(worktrees, lineageChildren),
     identityOf: getWorktreeHostIdentity,
     childrenByParentIdentity: lineageChildren,
     isPinned: (worktree) => worktree.isPinned === true && !folders.isFolder(worktree),
@@ -157,7 +159,7 @@ export function planSidebarRows(inputs: SidebarRowPlanInputs) {
           ? folders.boundRowsByGroupId(natural, displayRootByIdentity, lineageChildren)
           : null
       // Rows under a folder still count in their own projects; only their display moves.
-      const naturalWorktrees = natural.filter((row) => !folders.isFolder(row))
+      const naturalWorktrees = folders.projectRows(natural, groupBy === 'repo')
       const groups: OrderedGroupEntry[] =
         groupBy === 'none'
           ? [[ALL_GROUP_KEY, { label: '', items: naturalWorktrees, repoIds: new Set() }]]
@@ -234,8 +236,7 @@ export function planSidebarRows(inputs: SidebarRowPlanInputs) {
       projectIndex,
       hostLabelById
     )
-    userSections.emitSections('before', result, collapsedGroups, mixedWorktreeHostContextLabels)
-    emitPinnedGroup(
+    userSections.emitPinnedGroup(
       pinnedSectionWorktrees,
       repoOf,
       defaultHostId,
@@ -244,7 +245,6 @@ export function planSidebarRows(inputs: SidebarRowPlanInputs) {
       occurrencePlan,
       mixedWorktreeHostContextLabels
     )
-    userSections.emitSections('after', result, collapsedGroups, mixedWorktreeHostContextLabels)
     const withImportedLines = (rows: Row[]): Row[] =>
       appendImportedWorktreeLines(rows, { importedWorktreesByRepo, defaultHostId, hostLabelById })
     if (groupBy === 'none') {

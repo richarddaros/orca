@@ -20,7 +20,7 @@ import { setReactCommitCascadeRendererSurface } from './diagnostics/react-commit
 import { installOsFileDropCancellationGuard } from './lib/files/drop/os-file-drop-cancellation-guard'
 import { installBodyOverlayAttributes } from './lib/overlay-interaction/body-overlay-attributes'
 import { installReactDevPerformanceMeasureTrim } from './lib/react-dev-performance-measure-trim'
-import { useReduceVisualEffects } from './hooks/use-reduce-visual-effects'
+import { useReduceVisualEffects } from './hooks/theme/use-reduce-visual-effects'
 
 const disposeOsFileDropGuard = installOsFileDropCancellationGuard()
 import.meta.hot?.dispose(disposeOsFileDropGuard)

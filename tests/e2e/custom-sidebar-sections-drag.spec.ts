@@ -1,7 +1,7 @@
-import type { Locator, Page } from '@stablyai/playwright-test'
-import { test, expect } from './helpers/orca-app'
-import { addRepoWithWorkspaces, writeWorkspaceMeta } from './helpers/repo-with-workspaces'
-import { waitForSessionReady } from './helpers/store'
+import { expect, type Locator, type Page } from '@stablyai/playwright-test'
+import { test } from './desktop/electron-fixtures/orca-app'
+import { waitForSessionReady } from './desktop/renderer-probes/store'
+import { addRepoWithWorkspaces, writeWorkspaceMeta } from './custom-sidebar-sections-repo'
 
 // Fork (richarddaros/orca): dragging cards into, between and out of user sections, issue #10.
 test.use({ seedTestRepo: false })

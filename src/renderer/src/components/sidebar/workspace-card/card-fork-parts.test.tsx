@@ -104,7 +104,7 @@ function facts({
     review: null,
     checks: { total: 0, passing: 0, failing: 0, pending: 0 },
     links: { count: 0, issue: false, linearIssue: false, jiraIssue: false },
-    provenance: { automation: false, cli: false },
+    provenance: { automation: false, cli: false, bot: false },
     ports: { count: 0 },
     lineage: { childCount: 0, collapsed: false, toggleable: false },
     place: {
@@ -113,7 +113,9 @@ function facts({
       hideRepoBadge: !withProjectChip,
       showProjectName: false,
       affiliateList: false,
-      deleteQuickAction: false
+      deleteQuickAction: false,
+      compactLine: false,
+      lineHostLabel: null
     },
     options: {
       style,

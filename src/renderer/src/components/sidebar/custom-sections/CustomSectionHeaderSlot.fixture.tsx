@@ -1,6 +1,6 @@
 import { defineFixture } from '../../../component-fixtures/component-fixture'
 import type { CustomSidebarSectionsState } from '../../../../../shared/custom-sidebar-sections/custom-sidebar-sections-state'
-import { SidebarHeaderActions } from '../sidebar-header-actions'
+import { SidebarHeaderActions } from '../chrome/sidebar-header-actions'
 import { CustomSectionDialogHost } from './CustomSectionDialogHost'
 import { CustomSectionHeaderMenu } from './CustomSectionHeaderMenu'
 
