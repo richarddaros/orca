@@ -92,13 +92,21 @@ export function isOwnedSshTargetId(targetId: string | null | undefined): boolean
   )
 }
 
+const LOCAL_PARSED_EXECUTION_HOST: ParsedExecutionHost = Object.freeze({
+  kind: 'local',
+  id: LOCAL_EXECUTION_HOST_ID
+})
+
 export function parseExecutionHostId(value: string | null | undefined): ParsedExecutionHost | null {
+  if (value === LOCAL_EXECUTION_HOST_ID) {
+    return LOCAL_PARSED_EXECUTION_HOST
+  }
   const normalized = normalizeHostPart(value)
   if (!normalized) {
     return null
   }
   if (normalized === LOCAL_EXECUTION_HOST_ID) {
-    return { kind: 'local', id: LOCAL_EXECUTION_HOST_ID }
+    return LOCAL_PARSED_EXECUTION_HOST
   }
   if (normalized.startsWith('ssh:')) {
     const encoded = normalized.slice('ssh:'.length)
@@ -132,6 +140,18 @@ export function parseExecutionHostId(value: string | null | undefined): ParsedEx
     }
   }
   return null
+}
+
+/** Re-encodes the decoded target so equivalent spellings (e.g. `runtime:wsl:x` and `runtime:wsl%3Ax`) match catalog ids. */
+export function canonicalExecutionHostId(value: string | null | undefined): ExecutionHostId | null {
+  const parsed = parseExecutionHostId(value)
+  if (parsed?.kind === 'ssh') {
+    return toSshExecutionHostId(parsed.targetId)
+  }
+  if (parsed?.kind === 'runtime') {
+    return toRuntimeExecutionHostId(parsed.environmentId)
+  }
+  return parsed?.id ?? null
 }
 
 /** True only for an explicit local host id; absent or unparsable ids return false. */
